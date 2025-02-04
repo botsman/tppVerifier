@@ -1,0 +1,20 @@
+services:
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    # volumes:
+    #   - .:/app
+    depends_on:
+      - db
+    environment:
+      - MONGO_URL=mongodb://db:27017
+      - MONGO_DB=app
+      - PORT=3000
+      - GIN_MODE=debug
+  db:
+    image: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/db:/data/db
