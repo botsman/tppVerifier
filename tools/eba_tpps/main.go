@@ -289,7 +289,7 @@ func saveTPPs(out <-chan TPP) error {
 	}
 	defer client.Disconnect(nil)
 	// TODO: use a bulk insert
-	collection := client.Database("tpp-verifier").Collection("tpps")
+	collection := client.Database("tppVerifier").Collection("tpps")
 	batchSize := 1000
 	batch := make([]interface{}, 0, batchSize)
 	idx := 0

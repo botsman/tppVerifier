@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/botsman/tpp-verifier/app/db"
-	"github.com/botsman/tpp-verifier/app/verify"
+	"github.com/botsman/tppVerifier/app/db"
+	"github.com/botsman/tppVerifier/app/verify"
 )
 
 func DbMiddleware(client db.Client) gin.HandlerFunc {

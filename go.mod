@@ -1,4 +1,4 @@
-module github.com/botsman/tpp-verifier
+module github.com/botsman/tppVerifier
 
 go 1.23.5
 

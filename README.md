@@ -1,2 +1,2 @@
-# tpp-verifier
+# tppVerifier
 Open Banking TPP verified API
