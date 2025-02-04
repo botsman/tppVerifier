@@ -215,6 +215,6 @@ func main() {
 	parsedCertsChan := parseCerts(certsChan)
 	for cert := range parsedCertsChan {
 		// write to db
-		db.Database("tpp-verifier").Collection("certs").InsertOne(nil, cert)
+		db.Database("tppVerifier").Collection("certs").InsertOne(nil, cert)
 	}
 }
