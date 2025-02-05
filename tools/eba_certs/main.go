@@ -1,4 +1,4 @@
-package ebacerts
+package main
 
 import (
 	"encoding/xml"

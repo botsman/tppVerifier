@@ -16,6 +16,16 @@ func DbMiddleware(client db.Client) gin.HandlerFunc {
 	}
 }
 
+func setupRouter() *gin.Engine {
+	r := gin.Default()
+	return r
+}
+
+func setupTppVerifyRoutes(r *gin.Engine) {
+	tppRoute := r.Group("/tpp")
+	tppRoute.POST("/verify", verify.Verify)
+}
+
 func main() {
 	db, err := db.GetMongoDb()
 	if err != nil {
@@ -26,10 +36,8 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-	r := gin.Default()
+	r := setupRouter()
+	setupTppVerifyRoutes(r)
 	r.Use(DbMiddleware(db))
-
-	tppRoute := r.Group("/tpp")
-	tppRoute.POST("/verify", verify.Verify)
 	r.Run()
 }

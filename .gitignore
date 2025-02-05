@@ -6,3 +6,4 @@ data
 *.pem
 *.csr
 *.txt
+tools/*.json

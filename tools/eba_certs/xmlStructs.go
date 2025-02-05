@@ -1,4 +1,4 @@
-package ebacerts
+package main
 
 type TrustServiceStatusList struct {
 	TrustServiceProviders []TrustServiceProvider `xml:"TrustServiceProviderList>TrustServiceProvider"`

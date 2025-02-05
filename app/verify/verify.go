@@ -1,16 +1,13 @@
 package verify
 
 import (
-	"crypto/sha256"
-	"crypto/x509"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 type VerifyRequest struct {
-	Cert string `json:"cert"`
+	Cert []byte `json:"cert"`
 }
 
 type VerifyResult struct {
@@ -39,14 +36,12 @@ func Verify(c *gin.Context) {
 		})
 		return
 	}
-	var res = "asd"
 	cert, err := parseCert(c, req.Cert)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
-	fmt.Println(cert)
-	c.JSON(http.StatusOK, res)
+	c.JSON(http.StatusOK, cert)
 }
