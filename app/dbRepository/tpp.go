@@ -1,4 +1,4 @@
-package dbrepository
+package dbRepository
 
 import (
 	"context"

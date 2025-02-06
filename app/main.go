@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/botsman/tppVerifier/app/db"
-	"github.com/botsman/tppVerifier/app/dbrepository"
+	"github.com/botsman/tppVerifier/app/dbRepository"
 	"github.com/botsman/tppVerifier/app/verify"
 )
 
@@ -31,9 +31,9 @@ func main() {
 		}
 	}()
 
-	tppRepo := dbrepository.NewTppMongoRepository(client.Database)
+	tppRepo := dbRepository.NewTppMongoRepository(client.Database)
 	r := setupRouter()
 	setupTppVerifyRoutes(r)
-	r.Use(dbrepository.DbMiddleware(tppRepo))
+	r.Use(dbRepository.DbMiddleware(tppRepo))
 	r.Run()
 }

@@ -3,13 +3,13 @@ package verify
 import (
 	"errors"
 
-	"github.com/botsman/tppVerifier/app/dbrepository"
+	"github.com/botsman/tppVerifier/app/dbRepository"
 	"github.com/botsman/tppVerifier/app/models"
 	"github.com/gin-gonic/gin"
 )
 
 func getTpp(c *gin.Context, id string) (*models.TPP, error) {
-	repo, ok := c.MustGet("tppRepository").(dbrepository.TppRepository)
+	repo, ok := c.MustGet("tppRepository").(dbRepository.TppRepository)
 	if !ok {
 		return nil, errors.New("Couldn't get db client")
 	}
