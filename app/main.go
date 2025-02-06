@@ -6,15 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/botsman/tppVerifier/app/db"
+	"github.com/botsman/tppVerifier/app/dbRepository"
 	"github.com/botsman/tppVerifier/app/verify"
 )
-
-func DbMiddleware(client db.Client) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Set("db", client)
-		c.Next()
-	}
-}
 
 func setupRouter() *gin.Engine {
 	r := gin.Default()
@@ -27,17 +21,19 @@ func setupTppVerifyRoutes(r *gin.Engine) {
 }
 
 func main() {
-	db, err := db.GetMongoDb()
+	client, err := db.GetMongoDb()
 	if err != nil {
 		panic(err)
 	}
 	defer func() {
-		if err := db.Disconnect(nil); err != nil {
+		if err := client.Disconnect(nil); err != nil {
 			log.Fatal(err)
 		}
 	}()
+
+	tppRepo := dbRepository.NewTppMongoRepository(client.Database)
 	r := setupRouter()
 	setupTppVerifyRoutes(r)
-	r.Use(DbMiddleware(db))
+	r.Use(dbRepository.DbMiddleware(tppRepo))
 	r.Run()
 }

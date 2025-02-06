@@ -25,8 +25,6 @@ func Verify(c *gin.Context) {
 	//    - Check if the certificate is not expired
 	//    - Check if the certificate is not revoked
 	//    - Check if the certificate is signed by a trusted CA
-	//    - Check if the certificate is not sandbox
-	//    - Check certificate's scopes
 	// 5. Intersect the TPP's scopes with the certificate's scopes
 	// 5. Return the result
 	var req VerifyRequest
@@ -43,5 +41,28 @@ func Verify(c *gin.Context) {
 		})
 		return
 	}
+	// tpp, err := getTpp(c, cert.Id)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{
+	// 		"error": err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// certVerifyResult, err := verifyCert(c, cert, tpp)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{
+	// 		"error": err.Error(),
+	// 	})
+	// 	return
+	// }
+
+	// result, err := calculateResult(certVerifyResult, tpp)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{
+	// 		"error": err.Error(),
+	// 	})
+	// 	return
+	// }
 	c.JSON(http.StatusOK, cert)
 }
