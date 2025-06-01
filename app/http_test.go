@@ -1,14 +1,17 @@
-package verify
+package app
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/botsman/tppVerifier/app/dbRepository"
+	"github.com/botsman/tppVerifier/app/models"
+	"github.com/botsman/tppVerifier/app/verify"
 	"github.com/gin-gonic/gin"
 )
 
@@ -65,83 +68,57 @@ xATrtuTrc1kaX09wMf2RE7A/7ZZzEzVO89u/iRZZVnVFMX4fHG5Jlw0idnsRPitw
 yg7QQy0XpA2r/vN/PrCUiZ0leQVwtN+1q6TzcMKaBf+hjQ==
 -----END CERTIFICATE-----`
 
-func TestVerify_Success(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	var verifyRequest VerifyRequest
-	verifyRequest.Cert = []byte(certContent)
-	body, err := json.Marshal(verifyRequest)
-	if err != nil {
-		t.Fatalf("Couldn't marshal request: %v\n", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPost, "/verify", bytes.NewBuffer(body))
-	if err != nil {
-		t.Fatalf("Couldn't create request: %v\n", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = req
-
-	Verify(c)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("Expected status code 200, got %d\n", w.Code)
-	}
-	log.Printf("Response: %s\n", w.Body.String())
-
-	certContentNoPaddings := strings.Replace(certContent, "-----BEGIN CERTIFICATE-----", "", 1)
-	certContentNoPaddings = strings.Replace(certContentNoPaddings, "-----END CERTIFICATE-----", "", 1)
-	certContentNoPaddings = strings.ReplaceAll(certContentNoPaddings, "\n", "")
-
-	verifyRequest.Cert = []byte(certContentNoPaddings)
-	body, err = json.Marshal(verifyRequest)
-	if err != nil {
-		t.Fatalf("Couldn't marshal request: %v\n", err)
-	}
-
-	req, err = http.NewRequest(http.MethodPost, "/verify", bytes.NewBuffer(body))
-	if err != nil {
-		t.Fatalf("Couldn't create request: %v\n", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	w = httptest.NewRecorder()
-	c.Request = req
-
-	Verify(c)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("Expected status code 200, got %d\n", w.Code)
-	}
-	log.Printf("Response: %s\n", w.Body.String())
+type MockTppRepository struct {
 }
 
-func TestVerify_BadRequest(t *testing.T) {
+func NewMockTppRepository() *MockTppRepository {
+	return &MockTppRepository{}
+}
+func (m *MockTppRepository) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
+	return &models.TPP{
+		NameLatin:    "Some Company Name",
+		NameNative:   "Имя Компании",
+		Id:           "1234567890",
+		Authority:    "Some Authority",
+		Services:     map[string][]models.Service{"country1": {models.AIS}, "country2": {models.PIS}},
+		AuthorizedAt: time.Now(),
+		WithdrawnAt:  time.Now().Add(24 * time.Hour),
+		Type:         "type1",
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		Registry:     "Some Registry",
+	}, nil
+}
+
+func TestVerify(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+	tppRepo := NewMockTppRepository()
+	router.Use(dbRepository.DbMiddleware(tppRepo))
+	SetupTppVerifyRoutes(router)
 
-	var verifyRequest VerifyRequest
-	verifyRequest.Cert = []byte("invalid")
-	body, err := json.Marshal(verifyRequest)
-	if err != nil {
-		t.Fatalf("Couldn't marshal request: %v\n", err)
+	reqBody := verify.VerifyRequest{
+		Cert: []byte(certContent),
 	}
-
-	req, err := http.NewRequest(http.MethodPost, "/verify", bytes.NewBuffer(body))
+	reqBodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("Couldn't marshal request body: %v\n", err)
+	}
+	req := httptest.NewRequest("POST", "/tpp/verify", strings.NewReader(string(reqBodyBytes)))
 	if err != nil {
 		t.Fatalf("Couldn't create request: %v\n", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "text/plain")
+	resp := httptest.NewRecorder()
 
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = req
+	router.ServeHTTP(resp, req)
 
-	Verify(c)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status code 200, got %d", resp.Code)
+	}
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected status code 400, got %d\n", w.Code)
+	expectedResponse := `{"CompanyId":"Some Company Name","Scopes":["PSP_PI","PSP_AI"],"ParentLinks":["http://test.company.hu/CA.crt"],"CRLs":["http://test.company.hu/Some.crl"],"OCSPs":["http://test.company.hu/testca"],"Usage":"QSEAL","Serial":"1","Sha256":"ef2527a44ccee556b6a5cabde31dda68e45165b2ec2ae67270b17cf01f4e8f1a","NCA":{"Country":"FI","Name":"Finnish Financial Supervisory Authority","Id":"FI-FINFSA"}}`
+	if resp.Body.String() != expectedResponse {
+		t.Errorf("Expected response body %s, got %s", expectedResponse, resp.Body.String())
 	}
 }

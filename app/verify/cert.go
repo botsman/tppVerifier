@@ -19,15 +19,15 @@ import (
 
 type parsedCert struct {
 	cert        *x509.Certificate
-	companyId   string
-	scopes      []scope
-	parentLinks []string
-	crls        []string
-	ocsps       []string
-	usage       CertUsage
-	serial      string
-	sha256      string
-	nca         NCA
+	CompanyId   string
+	Scopes      []scope
+	ParentLinks []string
+	CRLs       []string
+	OCSPs      []string
+	Usage       CertUsage
+	Serial      string
+	Sha256      string
+	NCA         NCA
 }
 
 type CertUsage string
@@ -241,14 +241,14 @@ func formatCertContent(content []byte) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func parseCert(c *gin.Context, data []byte) (parsedCert, error) {
+func parseCert(_ *gin.Context, data []byte) (parsedCert, error) {
 	data, err := formatCertContent(data)
 	if err != nil {
 		return parsedCert{}, err
 	}
 	p, _ := pem.Decode(data) // ignore rest for now, maybe use it later
 	if p == nil {
-		return parsedCert{}, errors.New("Error parsing certificate")
+		return parsedCert{}, errors.New("error parsing certificate")
 	}
 	x509Cert, err := x509.ParseCertificate(p.Bytes)
 	if err != nil {
@@ -256,22 +256,22 @@ func parseCert(c *gin.Context, data []byte) (parsedCert, error) {
 	}
 	var cert parsedCert
 	cert.cert = x509Cert
-	cert.companyId = x509Cert.Subject.Organization[0]
+	cert.CompanyId = x509Cert.Subject.Organization[0]
 	scopes, err := getCertOBScopes(x509Cert)
 	if err != nil {
 		return parsedCert{}, err
 	}
-	cert.scopes = scopes
-	cert.parentLinks = x509Cert.IssuingCertificateURL
-	cert.crls = x509Cert.CRLDistributionPoints
-	cert.ocsps = x509Cert.OCSPServer
-	cert.usage = getCertUsage(x509Cert)
-	cert.serial = x509Cert.SerialNumber.String()
-	cert.sha256 = getSha256(x509Cert)
+	cert.Scopes = scopes
+	cert.ParentLinks = x509Cert.IssuingCertificateURL
+	cert.CRLs = x509Cert.CRLDistributionPoints
+	cert.OCSPs = x509Cert.OCSPServer
+	cert.Usage = getCertUsage(x509Cert)
+	cert.Serial = x509Cert.SerialNumber.String()
+	cert.Sha256 = getSha256(x509Cert)
 	nca, err := getCertNCA(x509Cert)
 	if err != nil {
 		return parsedCert{}, err
 	}
-	cert.nca = nca
+	cert.NCA = nca
 	return cert, nil
 }
