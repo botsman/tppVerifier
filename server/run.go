@@ -5,8 +5,7 @@ import (
 	"log"
 
 	"github.com/botsman/tppVerifier/app"
-	"github.com/botsman/tppVerifier/app/db"
-	"github.com/botsman/tppVerifier/app/dbRepository"
+	"github.com/botsman/tppVerifier/server/db"
 )
 
 func main() {
@@ -20,7 +19,7 @@ func main() {
 		}
 	}()
 
-	tppRepo := dbRepository.NewTppMongoRepository(client.Database)
+	tppRepo := db.NewTppMongoRepository(client.Database)
 	r := app.SetupRouter(tppRepo)
 	app.SetupTppVerifyRoutes(r)
 	r.Run()
