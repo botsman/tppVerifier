@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,15 +31,15 @@ const (
 const RegisterJsonName = "eba_register.json"
 var now = time.Now()
 
-func serviceFromString(str string) (Service, error) {
-	switch str {
-	case "PS_080":
-		return AIS, nil
-	case "PS_070":
-		return PIS, nil
-	}
-	return "", fmt.Errorf("unknown service: %s", str)
-}
+// func serviceFromString(str string) (Service, error) {
+// 	switch str {
+// 	case "PS_080":
+// 		return AIS, nil
+// 	case "PS_070":
+// 		return PIS, nil
+// 	}
+// 	return "", fmt.Errorf("unknown service: %s", str)
+// }
 
 func getRegistry() error {
 	reader, err := downloadRegistry()
@@ -147,7 +148,7 @@ func parseRegistry() (<-chan models.TPP, error) {
 				if tpp.NameLatin == "" {
 					continue
 				}
-				if tpp.Services == nil || len(tpp.Services) == 0 {
+				if len(tpp.Services) == 0 {
 					continue
 				}
 				tpp.CreatedAt = now
@@ -168,13 +169,13 @@ func setupDb() (*mongo.Client, error) {
 	}
 	clientOptions := options.Client().ApplyURI(mongoURI)
 
-	client, err := mongo.Connect(nil, clientOptions)
+	client, err := mongo.Connect(context.TODO(), clientOptions)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
 	}
 
-	err = client.Ping(nil, nil)
+	err = client.Ping(context.TODO(), nil)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
@@ -187,7 +188,7 @@ func saveTPPs(out <-chan models.TPP) error {
 	if err != nil {
 		return err
 	}
-	defer client.Disconnect(nil)
+	defer client.Disconnect(context.TODO())
 	// TODO: use a bulk insert
 	collection := client.Database("tppVerifier").Collection("tpps")
 	batchSize := 1000
@@ -197,7 +198,7 @@ func saveTPPs(out <-chan models.TPP) error {
 		idx += 1
 		batch = append(batch, tpp)
 		if idx == batchSize {
-			_, err := collection.InsertMany(nil, batch)
+			_, err := collection.InsertMany(context.TODO(), batch)
 			if err != nil {
 				return err
 			}
@@ -206,7 +207,7 @@ func saveTPPs(out <-chan models.TPP) error {
 		}
 	}
 	if len(batch) > 0 {
-		_, err := collection.InsertMany(nil, batch)
+		_, err := collection.InsertMany(context.TODO(), batch)
 		if err != nil {
 			return err
 		}

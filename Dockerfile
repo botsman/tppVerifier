@@ -8,7 +8,7 @@ RUN go mod verify
 
 COPY . .
 
-RUN cd app && go build -o /app/main .
+RUN cd server && go build -o /app/main .
 
 FROM scratch
 

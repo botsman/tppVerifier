@@ -7,7 +7,6 @@ import (
 	"unicode"
 )
 
-
 type Service string
 
 const (
@@ -26,15 +25,14 @@ func serviceFromString(str string) (Service, error) {
 	return "", fmt.Errorf("unknown service: %s", str)
 }
 
-
 type TPP struct {
 	NameLatin    string               `bson:"name_latin"`
 	NameNative   string               `bson:"name_native"`
 	Id           string               `bson:"id"`
 	Authority    string               `bson:"authority"`
 	Services     map[string][]Service `bson:"services"`
-	AuthorizedAt string               `bson:"authorized_at"`
-	WithdrawnAt  string               `bson:"withdrawn_at"`
+	AuthorizedAt time.Time            `bson:"authorized_at"`
+	WithdrawnAt  time.Time            `bson:"withdrawn_at"`
 	Type         string               `bson:"type"`
 	CreatedAt    time.Time            `bson:"created_at"`
 	UpdatedAt    time.Time            `bson:"updated_at"`
@@ -87,12 +85,41 @@ func (t *TPP) UnmarshalJSON(data []byte) error {
 				if !ok {
 					return nil
 				}
+				
+				parseDate := func(value interface{}) (time.Time, bool) {
+					str, ok := value.(string)
+					if !ok {
+						return time.Time{}, false
+					}
+					
+					formats := []string{
+						time.RFC3339,
+						"2006-01-02",
+						"2006-01-02T15:04:05",
+						"2006-01-02 15:04:05",
+					}
+					
+					for _, format := range formats {
+						if parsedTime, err := time.Parse(format, str); err == nil {
+							return parsedTime, true
+						}
+					}
+					
+					return time.Time{}, false
+				}
+				
 				switch len(entAut) {
 				case 1:
-					t.AuthorizedAt = entAut[0].(string)
+					if parsedTime, ok := parseDate(entAut[0]); ok {
+						t.AuthorizedAt = parsedTime
+					}
 				case 2:
-					t.AuthorizedAt = entAut[0].(string)
-					t.WithdrawnAt = entAut[1].(string)
+					if parsedTime, ok := parseDate(entAut[0]); ok {
+						t.AuthorizedAt = parsedTime
+					}
+					if parsedTime, ok := parseDate(entAut[1]); ok {
+						t.WithdrawnAt = parsedTime
+					}
 				}
 			}
 		}
