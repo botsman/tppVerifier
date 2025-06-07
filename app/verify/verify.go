@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/botsman/tppVerifier/app/models"
 )
 
 type VerifyRequest struct {
@@ -11,9 +12,11 @@ type VerifyRequest struct {
 }
 
 type VerifyResult struct {
-	Valid  bool                `json:"valid"`
-	Scopes map[string][]string `json:"scopes"`
-	Reason string              `json:"reason,omitempty"`
+	Certificate *ParsedCert         `json:"cert"`
+	TPP         *models.TPP         `json:"tpp"`
+	Valid       bool                `json:"valid"`
+	Scopes      map[string][]string `json:"scopes"`
+	Reason      string              `json:"reason,omitempty"`
 }
 
 func Verify(c *gin.Context) {
@@ -34,6 +37,7 @@ func Verify(c *gin.Context) {
 		})
 		return
 	}
+	result := VerifyResult{}
 	cert, err := parseCert(c, req.Cert)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -41,13 +45,15 @@ func Verify(c *gin.Context) {
 		})
 		return
 	}
-	// tpp, err := getTpp(c, cert.Id)
-	// if err != nil {
-	// 	c.JSON(http.StatusInternalServerError, gin.H{
-	// 		"error": err.Error(),
-	// 	})
-	// 	return
-	// }
+	result.Certificate = &cert
+	tpp, err := getTpp(c, cert.CompanyId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	result.TPP = tpp
 
 	// certVerifyResult, err := verifyCert(c, cert, tpp)
 	// if err != nil {
@@ -64,5 +70,5 @@ func Verify(c *gin.Context) {
 	// 	})
 	// 	return
 	// }
-	c.JSON(http.StatusOK, cert)
+	c.JSON(http.StatusOK, result)
 }

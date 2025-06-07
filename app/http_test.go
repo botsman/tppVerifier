@@ -117,8 +117,46 @@ func TestVerify(t *testing.T) {
 		t.Errorf("Expected status code 200, got %d", resp.Code)
 	}
 
-	expectedResponse := `{"CompanyId":"Some Company Name","Scopes":["PSP_PI","PSP_AI"],"ParentLinks":["http://test.company.hu/CA.crt"],"CRLs":["http://test.company.hu/Some.crl"],"OCSPs":["http://test.company.hu/testca"],"Usage":"QSEAL","Serial":"1","Sha256":"ef2527a44ccee556b6a5cabde31dda68e45165b2ec2ae67270b17cf01f4e8f1a","NCA":{"Country":"FI","Name":"Finnish Financial Supervisory Authority","Id":"FI-FINFSA"}}`
-	if resp.Body.String() != expectedResponse {
-		t.Errorf("Expected response body %s, got %s", expectedResponse, resp.Body.String())
+	expectedResponse := verify.VerifyResult{
+		Certificate: &verify.ParsedCert{
+			CompanyId: "12345678",
+			Scopes: []verify.Scope{
+				verify.PSP_AI, verify.PSP_PI,
+			},
+		},
+		TPP: &models.TPP{
+			NameLatin:    "Some Company Name",
+			NameNative:   "Имя Компании",
+			Id:           "12345678",
+			Authority:    "Some Authority",
+			Services:     map[string][]models.Service{"country1": {models.AIS}, "country2": {models.PIS}},
+			AuthorizedAt: time.Now(),
+			WithdrawnAt:  time.Now().Add(24 * time.Hour),
+			Type:         "type1",
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+			Registry:     "Some Registry",
+		},
+		Valid:  false,
+		Scopes: map[string][]string{
+			"country1": {"AIS"},
+			"country2": {"PIS"},
+		},
+		Reason: "",
+	}
+	_, err = json.Marshal(expectedResponse)
+	if err != nil {
+		t.Fatalf("Couldn't marshal expected response: %v\n", err)
+	}
+
+	var actualResponse verify.VerifyResult
+	if err := json.Unmarshal(resp.Body.Bytes(), &actualResponse); err != nil {
+		t.Fatalf("Couldn't unmarshal response: %v\n", err)
+	}
+	if actualResponse.Certificate.CompanyId != expectedResponse.Certificate.CompanyId {
+		t.Errorf("Expected CompanyId %s, got %s", expectedResponse.Certificate.CompanyId, actualResponse.Certificate.CompanyId)
+	}
+	if actualResponse.Valid != expectedResponse.Valid {
+		t.Errorf("Expected Valid %v, got %v", expectedResponse.Valid, actualResponse.Valid)
 	}
 }

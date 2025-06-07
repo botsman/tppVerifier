@@ -17,10 +17,10 @@ import (
 	"golang.org/x/crypto/ocsp"
 )
 
-type parsedCert struct {
+type ParsedCert struct {
 	cert        *x509.Certificate
 	CompanyId   string
-	Scopes      []scope
+	Scopes      []Scope
 	ParentLinks []string
 	CRLs       []string
 	OCSPs      []string
@@ -38,13 +38,13 @@ const (
 	UNKNOWN CertUsage = "UNKNOWN"
 )
 
-type scope string
+type Scope string
 
 const (
-	PSP_AS scope = "PSP_AS"
-	PSP_PI scope = "PSP_PI"
-	PSP_AI scope = "PSP_AI"
-	PSP_IC scope = "PSP_IC"
+	PSP_AS Scope = "PSP_AS"
+	PSP_PI Scope = "PSP_PI"
+	PSP_AI Scope = "PSP_AI"
+	PSP_IC Scope = "PSP_IC"
 )
 
 type QCStatement struct {
@@ -54,7 +54,7 @@ type QCStatement struct {
 
 type Role struct {
 	OID   asn1.ObjectIdentifier
-	Value scope
+	Value Scope
 }
 
 type PSD2QcType struct {
@@ -74,7 +74,7 @@ type URLStruct struct {
 	Lang string
 }
 
-func getCertOBScopes(cert *x509.Certificate) ([]scope, error) {
+func getCertOBScopes(cert *x509.Certificate) ([]Scope, error) {
 	for _, ext := range cert.Extensions {
 		if !ext.Id.Equal(asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 3}) {
 			continue
@@ -102,7 +102,7 @@ func getCertOBScopes(cert *x509.Certificate) ([]scope, error) {
 				if err != nil {
 					return nil, err
 				}
-				roles := make([]scope, 0)
+				roles := make([]Scope, 0)
 				for _, role := range psd2.RolesOfPSP {
 					roles = append(roles, role.Value)
 				}
@@ -241,25 +241,25 @@ func formatCertContent(content []byte) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func parseCert(_ *gin.Context, data []byte) (parsedCert, error) {
+func parseCert(_ *gin.Context, data []byte) (ParsedCert, error) {
 	data, err := formatCertContent(data)
 	if err != nil {
-		return parsedCert{}, err
+		return ParsedCert{}, err
 	}
 	p, _ := pem.Decode(data) // ignore rest for now, maybe use it later
 	if p == nil {
-		return parsedCert{}, errors.New("error parsing certificate")
+		return ParsedCert{}, errors.New("error parsing certificate")
 	}
 	x509Cert, err := x509.ParseCertificate(p.Bytes)
 	if err != nil {
-		return parsedCert{}, err
+		return ParsedCert{}, err
 	}
-	var cert parsedCert
+	var cert ParsedCert
 	cert.cert = x509Cert
-	cert.CompanyId = x509Cert.Subject.Organization[0]
+	cert.CompanyId = x509Cert.Subject.SerialNumber
 	scopes, err := getCertOBScopes(x509Cert)
 	if err != nil {
-		return parsedCert{}, err
+		return ParsedCert{}, err
 	}
 	cert.Scopes = scopes
 	cert.ParentLinks = x509Cert.IssuingCertificateURL
@@ -270,7 +270,7 @@ func parseCert(_ *gin.Context, data []byte) (parsedCert, error) {
 	cert.Sha256 = getSha256(x509Cert)
 	nca, err := getCertNCA(x509Cert)
 	if err != nil {
-		return parsedCert{}, err
+		return ParsedCert{}, err
 	}
 	cert.NCA = nca
 	return cert, nil
