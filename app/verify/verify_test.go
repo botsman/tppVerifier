@@ -1,22 +1,30 @@
 package verify
 
 import (
-	"bytes"
-	"context"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
-	"io"
-	"net/http"
-	"os"
-	"path"
-	"testing"
-	"time"
+	   "bytes"
+	   "context"
+	   "crypto/rsa"
+	   "crypto/x509"
+	   "encoding/pem"
+	   "io"
+	   "net/http"
+	   "os"
+	   "path"
+	   "path/filepath"
+	   "runtime"
+	   "testing"
+	   "time"
 
-	"github.com/botsman/tppVerifier/app/models"
-	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/ocsp"
+	   "github.com/botsman/tppVerifier/app/models"
+	   "github.com/gin-gonic/gin"
+	   "golang.org/x/crypto/ocsp"
 )
+
+// getTestDataPath returns the absolute path to a file or directory in testdata, relative to this test file.
+func getTestDataPath(relPath string) string {
+	_, filename, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(filename), "..", "..", "testdata", relPath)
+}
 
 const certContent = `-----BEGIN CERTIFICATE-----
 MIIJTjCCBzagAwIBAgIBATANBgkqhkiG9w0BAQsFADBdMQswCQYDVQQGEwJVUzEL
@@ -112,12 +120,7 @@ func (m *MockHttpClient) SetChainPath(path string) {
 func (m *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 	switch req.URL.String() {
 	case "http://test.company.hu/CA.crt":
-		projectRoot, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		path := projectRoot + "/../../testdata/chains/1/ca.pem"
-		data, err := os.ReadFile(path)
+	data, err := os.ReadFile(getTestDataPath("chains/1/ca.pem"))
 		if err != nil {
 			return nil, err
 		}
@@ -126,12 +129,7 @@ func (m *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 			Body:       io.NopCloser(bytes.NewReader(data)),
 		}, nil
 	case "http://yourdomain.com/certs/intermediate.crt":
-		projectRoot, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		path := projectRoot + "/../../testdata/chains/1/intermediate.pem"
-		data, err := os.ReadFile(path)
+	data, err := os.ReadFile(getTestDataPath("chains/1/intermediate.pem"))
 		if err != nil {
 			return nil, err
 		}
@@ -346,12 +344,7 @@ func TestVerifyCert(t *testing.T) {
 		t.Fatal("Expected non-nil VerifySvc")
 	}
 	ctx := gin.Context{}
-	projectRoot, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get project root: %v", err)
-		return
-	}
-	chainsPath := path.Join(projectRoot, "/../../testdata/chains/")
+	chainsPath := getTestDataPath("chains")
 	entries, err := os.ReadDir(chainsPath)
 	if err != nil {
 		t.Fatalf("Failed to read chains directory: %v", err)
@@ -365,8 +358,8 @@ func TestVerifyCert(t *testing.T) {
 		if !entry.IsDir() {
 			continue
 		}
-		httpClient.SetChainPath(path.Join(chainsPath, entry.Name()))
-		certPath := path.Join(chainsPath, entry.Name(), "leaf.pem")
+		httpClient.SetChainPath(filepath.Join(chainsPath, entry.Name()))
+		certPath := filepath.Join(chainsPath, entry.Name(), "leaf.pem")
 		certContent, err := os.ReadFile(certPath)
 		if err != nil {
 			t.Fatalf("Failed to read certificate file %s: %v", certPath, err)
