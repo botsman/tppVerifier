@@ -44,4 +44,4 @@ URI.1 = http://test.company.hu/Some.crl
 
 [ auth_info ]
 OCSP;URI.1 = http://test.company.hu/testca
-caIssuers;URI.1 = http://test.company.hu/CA.crt
+caIssuers;URI.1 = http://yourdomain.com/certs/intermediate.crt
