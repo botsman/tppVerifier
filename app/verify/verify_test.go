@@ -1,23 +1,25 @@
 package verify
 
 import (
-	   "bytes"
-	   "context"
-	   "crypto/rsa"
-	   "crypto/x509"
-	   "encoding/pem"
-	   "io"
-	   "net/http"
-	   "os"
-	   "path"
-	   "path/filepath"
-	   "runtime"
-	   "testing"
-	   "time"
+	"bytes"
+	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path"
+	"path/filepath"
+	"runtime"
+	"testing"
+	"time"
 
-	   "github.com/botsman/tppVerifier/app/models"
-	   "github.com/gin-gonic/gin"
-	   "golang.org/x/crypto/ocsp"
+	"github.com/botsman/tppVerifier/app/models"
+	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/ocsp"
 )
 
 // getTestDataPath returns the absolute path to a file or directory in testdata, relative to this test file.
@@ -120,7 +122,7 @@ func (m *MockHttpClient) SetChainPath(path string) {
 func (m *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 	switch req.URL.String() {
 	case "http://test.company.hu/CA.crt":
-	data, err := os.ReadFile(getTestDataPath("chains/1/ca.pem"))
+		data, err := os.ReadFile(getTestDataPath("chains/1/ca.pem"))
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +131,7 @@ func (m *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 			Body:       io.NopCloser(bytes.NewReader(data)),
 		}, nil
 	case "http://yourdomain.com/certs/intermediate.crt":
-	data, err := os.ReadFile(getTestDataPath("chains/1/intermediate.pem"))
+		data, err := os.ReadFile(getTestDataPath("chains/1/intermediate.pem"))
 		if err != nil {
 			return nil, err
 		}
@@ -139,11 +141,6 @@ func (m *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 		}, nil
 	// OCSP response simulation
 	case "http://test.company.hu/testca":
-		// certId := "166265749521381119151001480319330331692166129911"
-		// serial, ok := new(big.Int).SetString(certId, 10)
-		// if !ok {
-		// 	return nil, nil // Simulate error in serial number parsing
-		// }
 		response := m.getMockOCSPResponseBody(req)
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -380,86 +377,128 @@ func TestVerifyCert(t *testing.T) {
 			t.Error("Expected certificate to be verified successfully, but it was not")
 		}
 	}
-
 }
 
-// func TestVerify_Success(t *testing.T) {
-// 	gin.SetMode(gin.TestMode)
+func TestGetScopes(t *testing.T) {
+	db := NewMockDb()
+	if db == nil {
+		t.Fatal("Expected non-nil MockDb")
+	}
+	httpClient := NewMockHttpClient()
+	svc := NewVerifySvc(db, httpClient)
+	if svc == nil {
+		t.Fatal("Expected non-nil VerifySvc")
+	}
+	ctx := gin.Context{}
+	companyId := "12345678"
+	tpp, err := svc.getTpp(&ctx, companyId)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if tpp == nil {
+		t.Fatal("Expected non-nil TPP")
+	}
+	cert, err := svc.parseCert(&ctx, []byte(certContent))
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	scopes := svc.getScopes(&ctx, cert, tpp)
+	if len(scopes) == 0 {
+		t.Fatal("Expected non-empty scopes")
+	}
+	t.Logf("Scopes: %+v", scopes)
+}
 
-// 	var verifyRequest VerifyRequest
-// 	verifyRequest.Cert = []byte(certContent)
-// 	body, err := json.Marshal(verifyRequest)
-// 	if err != nil {
-// 		t.Fatalf("Couldn't marshal request: %v\n", err)
-// 	}
+func TestVerify_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := NewMockDb()
+	if db == nil {
+		t.Fatal("Expected non-nil MockDb")
+	}
+	httpClient := NewMockHttpClient()
+	chainsPath := getTestDataPath("chains")
+	httpClient.SetChainPath(filepath.Join(chainsPath, "1"))
+	svc := NewVerifySvc(db, httpClient)
+	if svc == nil {
+		t.Fatal("Expected non-nil VerifySvc")
+	}
+	var verifyRequest VerifyRequest
+	certContent, err := os.ReadFile(getTestDataPath("chains/1/leaf.pem"))
+	if err != nil {
+		t.Fatalf("Couldn't read certificate file: %v\n", err)
+	}
+	if len(certContent) == 0 {
+		t.Fatal("Expected non-empty certificate content")
+	}
+	// Set the certificate content in the request
+	verifyRequest.Cert = []byte(certContent)
+	body, err := json.Marshal(verifyRequest)
+	if err != nil {
+		t.Fatalf("Couldn't marshal request: %v\n", err)
+	}
 
-// 	req, err := http.NewRequest(http.MethodPost, "/verify", bytes.NewBuffer(body))
-// 	if err != nil {
-// 		t.Fatalf("Couldn't create request: %v\n", err)
-// 	}
-// 	req.Header.Set("Content-Type", "application/json")
+	req, err := http.NewRequest(http.MethodPost, "/verify", bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatalf("Couldn't create request: %v\n", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
 
-// 	w := httptest.NewRecorder()
-// 	c, _ := gin.CreateTestContext(w)
-// 	c.Request = req
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	c.Set("svc", svc)
+	svc.Verify(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status code %d, got %d\n", http.StatusOK, w.Code)
+	}
+	var verifyResponse VerifyResult
+	if err := json.Unmarshal(w.Body.Bytes(), &verifyResponse); err != nil {
+		t.Fatalf("Couldn't unmarshal response: %v\n", err)
+	}
+	if !verifyResponse.Valid {
+		t.Errorf("Expected valid certificate, got invalid: %s\n", verifyResponse.Reason)
+	}
+}
 
-// 	Verify(c)
+func TestVerify_Failure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := NewMockDb()
+	if db == nil {
+		t.Fatal("Expected non-nil MockDb")
+	}
+	httpClient := NewMockHttpClient()
+	chainsPath := getTestDataPath("chains")
+	httpClient.SetChainPath(filepath.Join(chainsPath, "1"))
+	svc := NewVerifySvc(db, httpClient)
+	if svc == nil {
+		t.Fatal("Expected non-nil VerifySvc")
+	}
+	var verifyRequest VerifyRequest
+	verifyRequest.Cert = []byte(certContent)
+	body, err := json.Marshal(verifyRequest)
+	if err != nil {
+		t.Fatalf("Couldn't marshal request: %v\n", err)
+	}
 
-// 	if w.Code != http.StatusOK {
-// 		t.Fatalf("Expected status code 200, got %d\n", w.Code)
-// 	}
-// 	log.Printf("Response: %s\n", w.Body.String())
+	req, err := http.NewRequest(http.MethodPost, "/verify", bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatalf("Couldn't create request: %v\n", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
 
-// 	certContentNoPaddings := strings.Replace(certContent, "-----BEGIN CERTIFICATE-----", "", 1)
-// 	certContentNoPaddings = strings.Replace(certContentNoPaddings, "-----END CERTIFICATE-----", "", 1)
-// 	certContentNoPaddings = strings.ReplaceAll(certContentNoPaddings, "\n", "")
-
-// 	verifyRequest.Cert = []byte(certContentNoPaddings)
-// 	body, err = json.Marshal(verifyRequest)
-// 	if err != nil {
-// 		t.Fatalf("Couldn't marshal request: %v\n", err)
-// 	}
-
-// 	req, err = http.NewRequest(http.MethodPost, "/verify", bytes.NewBuffer(body))
-// 	if err != nil {
-// 		t.Fatalf("Couldn't create request: %v\n", err)
-// 	}
-// 	req.Header.Set("Content-Type", "application/json")
-
-// 	w = httptest.NewRecorder()
-// 	c.Request = req
-
-// 	Verify(c)
-
-// 	if w.Code != http.StatusOK {
-// 		t.Fatalf("Expected status code 200, got %d\n", w.Code)
-// 	}
-// 	log.Printf("Response: %s\n", w.Body.String())
-// }
-
-// func TestVerify_BadRequest(t *testing.T) {
-// 	gin.SetMode(gin.TestMode)
-
-// 	var verifyRequest VerifyRequest
-// 	verifyRequest.Cert = []byte("invalid")
-// 	body, err := json.Marshal(verifyRequest)
-// 	if err != nil {
-// 		t.Fatalf("Couldn't marshal request: %v\n", err)
-// 	}
-
-// 	req, err := http.NewRequest(http.MethodPost, "/verify", bytes.NewBuffer(body))
-// 	if err != nil {
-// 		t.Fatalf("Couldn't create request: %v\n", err)
-// 	}
-// 	req.Header.Set("Content-Type", "application/json")
-
-// 	w := httptest.NewRecorder()
-// 	c, _ := gin.CreateTestContext(w)
-// 	c.Request = req
-
-// 	Verify(c)
-
-// 	if w.Code != http.StatusBadRequest {
-// 		t.Fatalf("Expected status code 400, got %d\n", w.Code)
-// 	}
-// }
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	c.Set("svc", svc)
+	svc.Verify(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status code %d, got %d\n", http.StatusOK, w.Code)
+	}
+	var verifyResponse VerifyResult
+	if err := json.Unmarshal(w.Body.Bytes(), &verifyResponse); err != nil {
+		t.Fatalf("Couldn't unmarshal response: %v\n", err)
+	}
+	if verifyResponse.Valid {
+		t.Error("Expected invalid certificate, got valid")
+	}
+}

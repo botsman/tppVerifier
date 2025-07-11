@@ -26,6 +26,7 @@ import (
 type VerifySvc struct {
 	db         db.TppRepository
 	httpClient vhttp.Client
+	roots      *x509.CertPool
 }
 
 func NewVerifySvc(db db.TppRepository, httpClient vhttp.Client) *VerifySvc {
@@ -45,6 +46,10 @@ type VerifyResult struct {
 	Valid       bool                `json:"valid"`
 	Scopes      map[string][]string `json:"scopes"`
 	Reason      string              `json:"reason,omitempty"`
+}
+
+func (s *VerifySvc) SetRoots(roots *x509.CertPool) {
+	s.roots = roots
 }
 
 func (s *VerifySvc) Verify(c *gin.Context) {
@@ -92,7 +97,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 	}
 	result.Valid = certVerifyResult.Valid
 	result.Reason = certVerifyResult.Reason
-	result.Scopes = s.getScopes(cert, tpp)
+	result.Scopes = s.getScopes(c, cert, tpp)
 	if len(result.Scopes) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "No valid scopes found in the certificate",
@@ -267,7 +272,7 @@ func getSha256(cert *x509.Certificate) string {
 	return hex.EncodeToString(checksum[:])
 }
 
-func (s *VerifySvc) isRevoked(c, issuer *x509.Certificate) bool {
+func (s *VerifySvc) isRevoked(c, issuer *x509.Certificate) (bool, error) {
 	ocspServer := c.OCSPServer[0]
 	// ocspUrl, err := url.Parse(ocspServer)
 	// if err != nil {
@@ -277,12 +282,12 @@ func (s *VerifySvc) isRevoked(c, issuer *x509.Certificate) bool {
 	req, err := ocsp.CreateRequest(c, issuer, nil)
 	if err != nil {
 		log.Printf("Error creating OCSP request: %s", err)
-		return false
+		return false, err
 	}
 	httpRequest, err := http.NewRequest("POST", ocspServer, bytes.NewReader(req))
 	if err != nil {
 		log.Printf("Error creating OCSP request: %s", err)
-		return false
+		return false, err
 	}
 	httpRequest.Header.Set("Content-Type", "application/ocsp-request")
 	httpRequest.Header.Set("Accept", "application/ocsp-response")
@@ -290,7 +295,7 @@ func (s *VerifySvc) isRevoked(c, issuer *x509.Certificate) bool {
 	httpResponse, err := s.httpClient.Do(httpRequest)
 	if err != nil {
 		log.Printf("Error sending OCSP request: %s", err)
-		return false
+		return false, err
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
@@ -300,19 +305,41 @@ func (s *VerifySvc) isRevoked(c, issuer *x509.Certificate) bool {
 	}(httpResponse.Body)
 	if httpResponse.StatusCode != http.StatusOK {
 		log.Printf("OCSP server returned status %d", httpResponse.StatusCode)
-		return false
+		return false, errors.New("OCSP server returned non-OK status")
 	}
 	body, err := io.ReadAll(httpResponse.Body)
 	if err != nil {
 		log.Printf("Error reading OCSP response: %s", err)
-		return false
+		return false, err
 	}
 	ocspResponse, err := ocsp.ParseResponseForCert(body, c, issuer)
 	if err != nil {
 		log.Printf("Error parsing OCSP response: %s", err)
-		return false
+		return false, err
 	}
-	return ocspResponse.Status == ocsp.Revoked
+	return ocspResponse.Status == ocsp.Revoked, nil
+}
+
+func (s *VerifySvc) isTrusted(cert *x509.Certificate, chain []*x509.Certificate) (bool, error) {
+	return true, nil // TODO: Implement certificate trust verification logic
+	// intermediatePool := x509.NewCertPool()
+	// for _, intermediate := range chain {
+	// 	intermediatePool.AddCert(intermediate)
+	// }
+	// opts := x509.VerifyOptions{
+	// 	Roots:         s.roots,
+	// 	Intermediates: intermediatePool,
+	// }
+	// _, err := cert.Verify(opts)
+	// if err != nil {
+	// 	log.Printf("Certificate verification failed: %s", err)
+	// 	if _, ok := err.(x509.UnknownAuthorityError); ok {
+	// 		log.Printf("Certificate is not trusted")
+	// 		return false, nil
+	// 	}
+	// }
+	// log.Printf("Certificate is trusted")
+	// return true, nil
 }
 
 func formatCertContent(content []byte) ([]byte, error) {
@@ -399,8 +426,29 @@ func (s *VerifySvc) verifyCert(c *gin.Context, cert ParsedCert) (certVerifyResul
 		result.Reason = "No certificate chain found for the certificate"
 		return result, nil
 	}
+	isTrusted, err := s.isTrusted(cert.cert, certChain)
+	if err != nil {
+		log.Printf("Error checking if certificate is trusted: %s", err)
+		result.Valid = false
+		result.Reason = "Error checking if certificate is trusted"
+		return result, nil
+	}
+	if !isTrusted {
+		log.Printf("Certificate is not trusted")
+		result.Valid = false
+		result.Reason = "Certificate is not trusted"
+		return result, nil
+	}
 
-	if s.isRevoked(cert.cert, certChain[len(certChain)-1]) {
+	isRevoked, err := s.isRevoked(cert.cert, certChain[len(certChain)-1])
+	if err != nil {
+		log.Printf("Error checking certificate revocation: %s", err)
+		result.Valid = false
+		result.Reason = "Error checking certificate revocation"
+		return result, nil
+	}
+	if isRevoked {
+		log.Printf("Certificate is revoked")
 		result.Valid = false
 		result.Reason = "Certificate is revoked"
 		return result, nil
@@ -473,7 +521,7 @@ func loadCerts(_ *gin.Context, body io.ReadCloser) ([]*x509.Certificate, error) 
 	return certs, nil
 }
 
-func (s *VerifySvc) getScopes(cert ParsedCert, tpp *models.TPP) map[string][]string {
+func (s *VerifySvc) getScopes(c *gin.Context, cert ParsedCert, tpp *models.TPP) map[string][]string {
 	certServices := getCertServices(cert)
 	if len(certServices) == 0 {
 		log.Printf("No services found in the certificate for TPP %s", tpp.Id)
