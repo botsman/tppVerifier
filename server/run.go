@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"log"
 	"net/http"
 
@@ -11,7 +12,8 @@ import (
 )
 
 func main() {
-	client, err := db.GetMongoDb()
+	ctx := context.Background()
+	client, err := db.GetMongoDb(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -24,6 +26,18 @@ func main() {
 	httpClient := &http.Client{} // Assuming you want to use a default HTTP client
 	tppRepo := db.NewTppMongoRepository(client.Database)
 	vs := verify.NewVerifySvc(tppRepo, httpClient)
+	roots, err := tppRepo.GetRootCertificates(ctx)
+	if err != nil {
+		log.Fatalf("Failed to get root certificates: %v", err)
+	}
+	rootPool := x509.NewCertPool()
+	for _, root := range roots {
+		// TODO: check if roots are formatted correctly
+		if !rootPool.AppendCertsFromPEM([]byte(root)) {
+			log.Printf("Failed to append root certificate")
+		}
+	}
+	vs.SetRoots(rootPool)
 	r := app.SetupRouter(vs)
 	r.Run()
 }

@@ -10,17 +10,17 @@ import (
 type Service string
 
 const (
-	AIS Service = "AISP"
-	PIS Service = "PISP"
+	AISP Service = "AISP"
+	PISP Service = "PISP"
 	// CBPII Service = "CBPII"
 )
 
 func serviceFromString(str string) (Service, error) {
 	switch str {
 	case "PS_080":
-		return AIS, nil
+		return AISP, nil
 	case "PS_070":
-		return PIS, nil
+		return PISP, nil
 	}
 	return "", fmt.Errorf("unknown service: %s", str)
 }
@@ -153,4 +153,41 @@ func (t *TPP) UnmarshalJSON(data []byte) error {
 	}
 	t.Registry = "EBA"
 	return nil
+}
+
+
+type Register string
+
+const (
+	EBA Register = "EBA"
+)
+
+type CertType string
+
+const (
+	QWAC   CertType = "QWAC"
+	QSealC CertType = "QSealC"
+)
+
+type Scope string
+
+const (
+	AIS Scope = "AIS"
+	PIS Scope = "PIS"
+)
+
+
+type ParsedCert struct {
+	Pem          string
+	SerialNumber string
+	Sha256       string
+	// Links        []string
+	Registers    []Register
+	NotBefore    time.Time
+	NotAfter     time.Time
+	Type         CertType // types?
+	Scopes       []Scope
+	Order        int
+	RootSha256   string
+	// CRLs		 []string ??
 }

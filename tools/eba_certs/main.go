@@ -12,35 +12,18 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/botsman/tppVerifier/app/models"
 )
 
 // Load XML files from EBA
 // Parse them
 // Insert results into the database
 
-type CertType string
-
-const (
-	QWAC   CertType = "QWAC"
-	QSealC CertType = "QSealC"
-)
-
-type Scope string
-
-const (
-	AIS Scope = "AIS"
-	PIS Scope = "PIS"
-)
-
-type Register string
-
-const (
-	EBA Register = "EBA"
-)
 
 type RawCert struct {
 	Pem  string
-	Type CertType
+	Type models.CertType
 }
 
 func getEEACountries() []string {
@@ -125,7 +108,7 @@ func parseXML(xmlData []byte) <-chan RawCert {
 					continue
 				}
 				serviceType := tspService.ServiceInformation.getType()
-				if serviceType != QSealC {
+				if serviceType != models.QSealC {
 					continue
 				}
 				cert := tspService.ServiceInformation.getPemCert()
@@ -163,8 +146,8 @@ func parseXMLs(xmlChan <-chan []byte) <-chan RawCert {
 	return certsChan
 }
 
-func parseCerts(certChan <-chan RawCert) <-chan ParsedCert {
-	parsedCertChan := make(chan ParsedCert)
+func parseCerts(certChan <-chan RawCert) <-chan models.ParsedCert {
+	parsedCertChan := make(chan models.ParsedCert)
 	go func() {
 		defer close(parsedCertChan)
 		for cert := range certChan {

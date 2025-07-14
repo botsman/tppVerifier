@@ -1,5 +1,9 @@
 package main
 
+import (
+	"github.com/botsman/tppVerifier/app/models"
+)
+
 type TrustServiceStatusList struct {
 	TrustServiceProviders []TrustServiceProvider `xml:"TrustServiceProviderList>TrustServiceProvider"`
 }
@@ -23,13 +27,13 @@ func (si ServiceInformation) isValidStatus() bool {
 	return si.ServiceStatus == "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted"
 }
 
-func (si ServiceInformation) getType() CertType {
+func (si ServiceInformation) getType() models.CertType {
 	for _, ext := range si.ServiceInformationExtensions.Extensions {
 		if ext.AdditionalServiceInformation.URI == "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication" {
-			return QWAC
+			return models.QWAC
 		}
 		if ext.AdditionalServiceInformation.URI == "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForeSeals" {
-			return QSealC
+			return models.QSealC
 		}
 	}
 	return ""

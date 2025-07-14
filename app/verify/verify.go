@@ -356,10 +356,7 @@ func formatCertContent(content []byte) ([]byte, error) {
 	buffer.WriteString(certPrefix)
 	buffer.WriteString("\n")
 	for i := 0; i < len(contentString); i += pemLineLength {
-		end := i + pemLineLength
-		if end > len(contentString) {
-			end = len(contentString)
-		}
+		end := min(i+pemLineLength, len(contentString))
 		buffer.WriteString(contentString[i:end])
 		buffer.WriteString("\n")
 	}
@@ -543,9 +540,9 @@ func getCertServices(cert ParsedCert) []models.Service {
 	for _, scope := range cert.Scopes {
 		switch scope {
 		case PSP_PI:
-			services = append(services, models.PIS)
+			services = append(services, models.PISP)
 		case PSP_AI:
-			services = append(services, models.AIS)
+			services = append(services, models.AISP)
 		default:
 			log.Printf("Unknown scope in certificate: %s", scope)
 			continue
