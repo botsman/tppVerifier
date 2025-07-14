@@ -17,20 +17,20 @@ type MongoClient struct {
 	Database *mongo.Database
 }
 
-func GetMongoDb() (*MongoClient, error) {
+func GetMongoDb(ctx context.Context) (*MongoClient, error) {
 	mongoURI := os.Getenv("MONGO_URL")
 	if mongoURI == "" {
 		return nil, errors.New("MONGO_URL is not set")
 	}
 	clientOptions := options.Client().ApplyURI(mongoURI)
 
-	mongoClient, err := mongo.Connect(nil, clientOptions)
+	mongoClient, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
 	}
 
-	err = mongoClient.Ping(nil, nil)
+	err = mongoClient.Ping(ctx, nil)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
@@ -45,7 +45,7 @@ func GetMongoDb() (*MongoClient, error) {
 }
 
 func (db *MongoClient) Disconnect(ctx context.Context) error {
-	return db.Disconnect(ctx)
+	return db.Database.Client().Disconnect(ctx)
 }
 
 
@@ -60,6 +60,29 @@ func (r *TppMongoRepository) GetTpp(ctx context.Context, id string) (*models.TPP
 		return nil, err
 	}
 	return tpp, nil
+}
+
+func (r *TppMongoRepository) GetRootCertificates(ctx context.Context) ([]string, error) {
+	// Get all certificates from the "certs" collection for now
+	cursor, err := r.db.Collection("certs").Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var roots []string
+	for cursor.Next(ctx) {
+		// TODO: move models from the tools package to the app/models package
+		var tpp models.ParsedCert
+		if err := cursor.Decode(&tpp); err != nil {
+			return nil, err
+		}
+		roots = append(roots, tpp.Pem)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+	return roots, nil
 }
 
 func NewTppMongoRepository(db *mongo.Database) *TppMongoRepository {

@@ -93,7 +93,7 @@ func (m *MockDb) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
 			NameNative: "Teszt TPP",
 			Authority:  "Test Authority",
 			Services: map[string][]models.Service{
-				"FI": {models.AIS, models.PIS},
+				"FI": {models.AISP, models.PISP},
 			},
 			AuthorizedAt: time.Now(),
 			WithdrawnAt:  time.Time{},

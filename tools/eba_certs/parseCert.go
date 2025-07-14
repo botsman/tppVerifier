@@ -6,46 +6,34 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
-	"time"
+
+	"github.com/botsman/tppVerifier/app/models"
 )
 
-type ParsedCert struct {
-	Pem          string
-	SerialNumber string
-	Sha256       string
-	// Links        []string
-	Registers    []Register
-	NotBefore    time.Time
-	NotAfter     time.Time
-	Type         CertType // types?
-	Scopes       []Scope
-	Order        int
-	RootSha256   string
-	// CRLs		 []string ??
-}
+
 
 const certPrefix = "-----BEGIN CERTIFICATE-----"
 const certSuffix = "-----END CERTIFICATE-----"
 
 
-func parseCert(cert RawCert) (ParsedCert, error) {
+func parseCert(cert RawCert) (models.ParsedCert, error) {
 	var certPem = cert.Pem
 	formattedCert := fmt.Sprintf("%s\n%s\n%s", certPrefix, certPem, certSuffix)
 	var block, _ = pem.Decode([]byte(formattedCert))
 	if block == nil {
-		return ParsedCert{}, fmt.Errorf("failed to parse certificate")
+		return models.ParsedCert{}, fmt.Errorf("failed to parse certificate")
 	}
 	x509Cert, err := x509.ParseCertificate([]byte(block.Bytes))
 	if err != nil {
-		return ParsedCert{}, err
+		return models.ParsedCert{}, err
 	}
 
-	return ParsedCert{
+	return models.ParsedCert{
 		Pem:          cert.Pem,
 		SerialNumber: x509Cert.SerialNumber.String(),
 		Sha256:       getSha256(x509Cert),
 		// Links:        x509Cert.IssuingCertificateURL,
-		Registers:    []Register{EBA},
+		Registers:    []models.Register{models.EBA},
 		NotBefore:    x509Cert.NotBefore,
 		NotAfter:     x509Cert.NotAfter,
 		Type:         cert.Type,
