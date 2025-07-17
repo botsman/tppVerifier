@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/x509"
 	"log"
 	"net/http"
 
@@ -30,14 +29,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to get root certificates: %v", err)
 	}
-	rootPool := x509.NewCertPool()
-	for _, root := range roots {
-		// TODO: check if roots are formatted correctly
-		if !rootPool.AppendCertsFromPEM([]byte(root)) {
-			log.Printf("Failed to append root certificate")
-		}
-	}
-	vs.SetRoots(rootPool)
+	vs.SetRoots(roots)
 	r := app.SetupRouter(vs)
 	r.Run()
 }
