@@ -3,6 +3,7 @@ package verify
 import (
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/botsman/tppVerifier/app/db"
 	vhttp "github.com/botsman/tppVerifier/app/http"
@@ -48,8 +49,19 @@ type VerifyResult struct {
 	Reason      string              `json:"reason,omitempty"`
 }
 
-func (s *VerifySvc) SetRoots(roots *x509.CertPool) {
-	s.roots = roots
+func (s *VerifySvc) SetRoots(roots []string) {
+	certPool := x509.NewCertPool()
+	for _, rawRoot := range roots {
+		pemBytes, err := RawCertToPEM([]byte(rawRoot))
+		if err != nil {
+			log.Printf("Error converting root certificate to PEM format: %s", err)
+			continue
+		}
+		if !certPool.AppendCertsFromPEM(pemBytes) {
+			panic("Failed to append root certificate")
+		}
+	}
+	s.roots = certPool
 }
 
 func (s *VerifySvc) Verify(c *gin.Context) {
@@ -320,26 +332,42 @@ func (s *VerifySvc) isRevoked(c, issuer *x509.Certificate) (bool, error) {
 	return ocspResponse.Status == ocsp.Revoked, nil
 }
 
+func RawCertToPEM(raw []byte) ([]byte, error) {
+	pemBytes := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: raw,
+	})
+	if pemBytes == nil {
+		return nil, errors.New("error encoding certificate to PEM format")
+	}
+	return pemBytes, nil
+}
+
 func (s *VerifySvc) isTrusted(cert *x509.Certificate, chain []*x509.Certificate) (bool, error) {
-	return true, nil // TODO: Implement certificate trust verification logic
-	// intermediatePool := x509.NewCertPool()
-	// for _, intermediate := range chain {
-	// 	intermediatePool.AddCert(intermediate)
-	// }
-	// opts := x509.VerifyOptions{
-	// 	Roots:         s.roots,
-	// 	Intermediates: intermediatePool,
-	// }
-	// _, err := cert.Verify(opts)
-	// if err != nil {
-	// 	log.Printf("Certificate verification failed: %s", err)
-	// 	if _, ok := err.(x509.UnknownAuthorityError); ok {
-	// 		log.Printf("Certificate is not trusted")
-	// 		return false, nil
-	// 	}
-	// }
-	// log.Printf("Certificate is trusted")
-	// return true, nil
+	intermediatePool := x509.NewCertPool()
+	for _, intermediate := range chain {
+		pemBytes, err := RawCertToPEM(intermediate.Raw)
+		if err != nil {
+			log.Printf("Error converting intermediate certificate to PEM format: %s", err)
+			return false, err
+		}
+		if !intermediatePool.AppendCertsFromPEM(pemBytes) {
+			log.Printf("Failed to append intermediate certificate to pool")
+			return false, errors.New("failed to append intermediate certificate to pool")
+		}
+	}
+	opts := x509.VerifyOptions{
+		Roots:         s.roots,
+		Intermediates: intermediatePool,
+		CurrentTime:   time.Now(),
+	}
+	_, err := cert.Verify(opts)
+	if err != nil {
+		log.Printf("Certificate verification failed: %s", err)
+		return false, err
+	}
+	log.Printf("Certificate is trusted")
+	return true, nil
 }
 
 func formatCertContent(content []byte) ([]byte, error) {

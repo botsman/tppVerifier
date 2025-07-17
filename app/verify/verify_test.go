@@ -362,6 +362,23 @@ func TestVerifyCert(t *testing.T) {
 			t.Fatalf("Failed to read certificate file %s: %v", certPath, err)
 			return
 		}
+		caCertPath := filepath.Join(chainsPath, entry.Name(), "ca.pem")
+		caCertContent, err := os.ReadFile(caCertPath)
+		if err != nil {
+			t.Fatalf("Failed to read CA certificate file %s: %v", caCertPath, err)
+			return
+		}
+		caPem, _ := pem.Decode(caCertContent)
+		if caPem == nil {
+			t.Fatalf("Failed to decode CA certificate PEM from %s", caCertPath)
+			return
+		}
+		caCert, err := x509.ParseCertificate(caPem.Bytes)
+		if err != nil {
+			t.Fatalf("Failed to parse CA certificate from %s: %v", caCertPath, err)
+			return
+		}
+		svc.SetRoots([]string{string(caCert.Raw)})
 		cert, err := svc.parseCert(&ctx, []byte(certContent))
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -430,6 +447,24 @@ func TestVerify_Success(t *testing.T) {
 	if len(certContent) == 0 {
 		t.Fatal("Expected non-empty certificate content")
 	}
+	caCertContent, err := os.ReadFile(getTestDataPath("chains/1/ca.pem"))
+	if err != nil {
+		t.Fatalf("Couldn't read CA certificate file: %v\n", err)
+	}
+	if len(caCertContent) == 0 {
+		t.Fatal("Expected non-empty CA certificate content")
+	}
+	caPem, _ := pem.Decode(caCertContent)
+	if caPem == nil {
+		t.Fatal("Failed to decode CA certificate PEM")
+		return
+	}
+	caCert, err := x509.ParseCertificate(caPem.Bytes)
+		if err != nil {
+			t.Fatalf("Failed to parse CA certificate from %s: %v", "chains/1/ca.pem", err)
+			return
+		}
+		svc.SetRoots([]string{string(caCert.Raw)})
 	// Set the certificate content in the request
 	verifyRequest.Cert = []byte(certContent)
 	body, err := json.Marshal(verifyRequest)
