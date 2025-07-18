@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 	"unicode"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type Service string
@@ -85,29 +87,29 @@ func (t *TPP) UnmarshalJSON(data []byte) error {
 				if !ok {
 					return nil
 				}
-				
+
 				parseDate := func(value interface{}) (time.Time, bool) {
 					str, ok := value.(string)
 					if !ok {
 						return time.Time{}, false
 					}
-					
+
 					formats := []string{
 						time.RFC3339,
 						"2006-01-02",
 						"2006-01-02T15:04:05",
 						"2006-01-02 15:04:05",
 					}
-					
+
 					for _, format := range formats {
 						if parsedTime, err := time.Parse(format, str); err == nil {
 							return parsedTime, true
 						}
 					}
-					
+
 					return time.Time{}, false
 				}
-				
+
 				switch len(entAut) {
 				case 1:
 					if parsedTime, ok := parseDate(entAut[0]); ok {
@@ -155,7 +157,6 @@ func (t *TPP) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-
 type Register string
 
 const (
@@ -169,6 +170,14 @@ const (
 	QSealC CertType = "QSealC"
 )
 
+type Position string
+
+const (
+	Root         Position = "Root"
+	Intermediate Position = "Intermediate"
+	Leaf         Position = "Leaf"
+)
+
 type Scope string
 
 const (
@@ -176,18 +185,45 @@ const (
 	PIS Scope = "PIS"
 )
 
-
 type ParsedCert struct {
 	Pem          string
 	SerialNumber string
 	Sha256       string
-	// Links        []string
+	Links        []string
 	Registers    []Register
 	NotBefore    time.Time
 	NotAfter     time.Time
 	Type         CertType // types?
+	Position     Position
 	Scopes       []Scope
-	Order        int
-	RootSha256   string
+	RootSha256   *string `bson:"root_sha256,omitempty"` // sha256 of the root certificate, if this is an intermediate or leaf certificate
 	// CRLs		 []string ??
+	CreatedAt time.Time `bson:"created_at"`
+	UpdatedAt time.Time `bson:"updated_at"`
+	IsActive  bool      `bson:"is_active"`
+}
+
+func (c ParsedCert) ToBson(now time.Time) (bson.M, error) {
+	res := bson.M{
+		"pem":           c.Pem,
+		"serial_number": c.SerialNumber,
+		"sha256":        c.Sha256,
+		"registers":     c.Registers,
+		"not_before":    c.NotBefore,
+		"not_after":     c.NotAfter,
+		"type":          c.Type,
+		"position":      c.Position,
+		"updated_at":    now,
+		"is_active":     true,
+	}
+	if c.Links != nil {
+		res["links"] = c.Links
+	}
+	if c.RootSha256 != nil {
+		res["root_sha256"] = *c.RootSha256
+	}
+	if c.Scopes != nil {
+		res["scopes"] = c.Scopes
+	}
+	return res, nil
 }

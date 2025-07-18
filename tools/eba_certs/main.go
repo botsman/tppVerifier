@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -19,7 +21,6 @@ import (
 // Load XML files from EBA
 // Parse them
 // Insert results into the database
-
 
 type RawCert struct {
 	Pem  string
@@ -162,7 +163,7 @@ func parseCerts(certChan <-chan RawCert) <-chan models.ParsedCert {
 	return parsedCertChan
 }
 
-func setupDb() (*mongo.Client, error) {
+func setupDb(ctx context.Context) (*mongo.Client, error) {
 	// mongoURI := os.Getenv("MONGO_URL")
 	mongoURI := "mongodb://localhost:27017"
 	if mongoURI == "" {
@@ -170,13 +171,13 @@ func setupDb() (*mongo.Client, error) {
 	}
 	clientOptions := options.Client().ApplyURI(mongoURI)
 
-	client, err := mongo.Connect(nil, clientOptions)
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
 	}
 
-	err = client.Ping(nil, nil)
+	err = client.Ping(ctx, nil)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
@@ -185,7 +186,8 @@ func setupDb() (*mongo.Client, error) {
 }
 
 func main() {
-	db, err := setupDb()
+	ctx := context.Background()
+	db, err := setupDb(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -196,8 +198,48 @@ func main() {
 	xmlChan := loadXMLs(httpClient)
 	certsChan := parseXMLs(xmlChan)
 	parsedCertsChan := parseCerts(certsChan)
+	certsCollection := db.Database("tppVerifier").Collection("certs")
+	opts := options.Update().SetUpsert(true)
+	// TODO: use bulk for performance
 	for cert := range parsedCertsChan {
-		// write to db
-		db.Database("tppVerifier").Collection("certs").InsertOne(nil, cert)
+		filter := bson.M{"sha256": cert.Sha256}
+		certSet, err := cert.ToBson(now)
+		if err != nil {
+			fmt.Println("Error converting cert to BSON:", err)
+			continue
+		}
+		update := bson.M{
+			"$set": certSet,
+			"$setOnInsert": bson.M{
+				"created_at": now, // Set created_at only on insert
+			},
+		}
+		certsCollection.UpdateOne(ctx,
+			filter,
+			update,
+			opts,
+		)
 	}
+
+	// Clean up all certificates that are not active
+	// We check their `updated_at` field to see if they were not updated in the
+	// current run
+	cleanupRes, err := certsCollection.UpdateMany(ctx,
+		bson.M{
+			"is_active": true,
+			"position": bson.M{"$eq": models.Root},
+			"updated_at": bson.M{"$ne": now},
+		},
+		bson.M{
+			"$set": bson.M{
+				"is_active": false,
+			},
+		},
+		opts,
+	)
+	if err != nil {
+		fmt.Println("Error updating inactive certificates:", err)
+	}
+	fmt.Println("Finished processing certificates at", nowStr)
+	fmt.Printf("Updated %d certificates to inactive\n", cleanupRes.ModifiedCount)
 }

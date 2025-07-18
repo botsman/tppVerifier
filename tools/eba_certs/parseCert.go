@@ -32,12 +32,11 @@ func parseCert(cert RawCert) (models.ParsedCert, error) {
 		Pem:          cert.Pem,
 		SerialNumber: x509Cert.SerialNumber.String(),
 		Sha256:       getSha256(x509Cert),
-		// Links:        x509Cert.IssuingCertificateURL,
 		Registers:    []models.Register{models.EBA},
 		NotBefore:    x509Cert.NotBefore,
 		NotAfter:     x509Cert.NotAfter,
 		Type:         cert.Type,
-		Order:        0, // Trusted certificates have order 0
+		Position:     models.Root,
 	}, nil
 }
 
