@@ -378,7 +378,7 @@ func TestVerifyCert(t *testing.T) {
 			t.Fatalf("Failed to parse CA certificate from %s: %v", caCertPath, err)
 			return
 		}
-		svc.SetRoots([]string{string(caCert.Raw)})
+		svc.AddRoot(caCert)
 		cert, err := svc.parseCert(&ctx, []byte(certContent))
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -460,11 +460,11 @@ func TestVerify_Success(t *testing.T) {
 		return
 	}
 	caCert, err := x509.ParseCertificate(caPem.Bytes)
-		if err != nil {
-			t.Fatalf("Failed to parse CA certificate from %s: %v", "chains/1/ca.pem", err)
-			return
-		}
-		svc.SetRoots([]string{string(caCert.Raw)})
+	if err != nil {
+		t.Fatalf("Failed to parse CA certificate from %s: %v", "chains/1/ca.pem", err)
+		return
+	}
+	svc.AddRoot(caCert)
 	// Set the certificate content in the request
 	verifyRequest.Cert = []byte(certContent)
 	body, err := json.Marshal(verifyRequest)
