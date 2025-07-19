@@ -27,13 +27,13 @@ func (si ServiceInformation) isValidStatus() bool {
 	return si.ServiceStatus == "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted"
 }
 
-func (si ServiceInformation) getType() models.CertType {
+func (si ServiceInformation) getType() models.CertUsage {
 	for _, ext := range si.ServiceInformationExtensions.Extensions {
 		if ext.AdditionalServiceInformation.URI == "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForWebSiteAuthentication" {
 			return models.QWAC
 		}
 		if ext.AdditionalServiceInformation.URI == "http://uri.etsi.org/TrstSvc/TrustedList/SvcInfoExt/ForeSeals" {
-			return models.QSealC
+			return models.QSEAL
 		}
 	}
 	return ""

@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log"
 	"os"
+	"time"
 
 	"github.com/botsman/tppVerifier/app/models"
+	"github.com/botsman/tppVerifier/app/cert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -72,7 +74,6 @@ func (r *TppMongoRepository) GetRootCertificates(ctx context.Context) ([]string,
 
 	var roots []string
 	for cursor.Next(ctx) {
-		// TODO: move models from the tools package to the app/models package
 		var tpp models.ParsedCert
 		if err := cursor.Decode(&tpp); err != nil {
 			return nil, err
@@ -83,6 +84,21 @@ func (r *TppMongoRepository) GetRootCertificates(ctx context.Context) ([]string,
 		return nil, err
 	}
 	return roots, nil
+}
+
+func (r *TppMongoRepository) AddIntermediateCertificate(ctx context.Context, cert *cert.ParsedCert) error {
+	if cert == nil {
+		return errors.New("certificate cannot be nil")
+	}
+	certBson, err := cert.ToBson(time.Now())
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Collection("certs").InsertOne(ctx, certBson)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func NewTppMongoRepository(db *mongo.Database) *TppMongoRepository {

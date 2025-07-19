@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/botsman/tppVerifier/app/cert"
 	"github.com/botsman/tppVerifier/app/models"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/ocsp"
@@ -96,7 +97,7 @@ func (m *MockDb) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
 				"FI": {models.AISP, models.PISP},
 			},
 			AuthorizedAt: time.Now(),
-			WithdrawnAt:  time.Time{},
+			WithdrawnAt:  &time.Time{},
 			Type:         "TPP",
 			CreatedAt:    time.Now(),
 			UpdatedAt:    time.Now(),
@@ -105,6 +106,14 @@ func (m *MockDb) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
 	default:
 		return nil, nil // Simulate no TPP found
 	}
+}
+
+func (m *MockDb) AddIntermediateCertificate(ctx context.Context, cert *cert.ParsedCert) error {
+	return nil
+}
+
+func (m *MockDb) GetRootCertificates(ctx context.Context) ([]string, error) {
+	return []string{"root1", "root2"}, nil
 }
 
 func NewMockDb() *MockDb {
@@ -250,7 +259,7 @@ func TestParseCert(t *testing.T) {
 	}
 	ctx := gin.Context{}
 
-	cert, err := svc.parseCert(&ctx, []byte(certContent))
+	cert, err := cert.ParseCert(&ctx, []byte(certContent))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -261,8 +270,8 @@ func TestParseCert(t *testing.T) {
 	if len(cert.Scopes) == 0 {
 		t.Error("Expected non-empty Scopes, got none")
 	}
-	if cert.Scopes[0] != PSP_PI || cert.Scopes[1] != PSP_AI {
-		t.Errorf("Expected Scopes to contain PSP_AI and PSP_PI, got %v", cert.Scopes)
+	if cert.Scopes[0] != models.ScopePIS || cert.Scopes[1] != models.ScopeAIS {
+		t.Errorf("Expected Scopes to contain models.AIS and models.PIS, got %v", cert.Scopes)
 	}
 	if len(cert.ParentLinks) == 0 {
 		t.Error("Expected non-empty ParentLinks, got none")
@@ -379,7 +388,7 @@ func TestVerifyCert(t *testing.T) {
 			return
 		}
 		svc.AddRoot(caCert)
-		cert, err := svc.parseCert(&ctx, []byte(certContent))
+		cert, err := cert.ParseCert(&ctx, []byte(certContent))
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -415,7 +424,7 @@ func TestGetScopes(t *testing.T) {
 	if tpp == nil {
 		t.Fatal("Expected non-nil TPP")
 	}
-	cert, err := svc.parseCert(&ctx, []byte(certContent))
+	cert, err := cert.ParseCert(&ctx, []byte(certContent))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -487,6 +496,8 @@ func TestVerify_Success(t *testing.T) {
 		t.Fatalf("Expected status code %d, got %d\n", http.StatusOK, w.Code)
 	}
 	var verifyResponse VerifyResult
+	res := string(w.Body.Bytes())
+	t.Logf("Response: %s", res)
 	if err := json.Unmarshal(w.Body.Bytes(), &verifyResponse); err != nil {
 		t.Fatalf("Couldn't unmarshal response: %v\n", err)
 	}

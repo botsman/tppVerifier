@@ -24,7 +24,7 @@ import (
 
 type RawCert struct {
 	Pem  string
-	Type models.CertType
+	Type models.CertUsage
 }
 
 func getEEACountries() []string {
@@ -109,7 +109,7 @@ func parseXML(xmlData []byte) <-chan RawCert {
 					continue
 				}
 				serviceType := tspService.ServiceInformation.getType()
-				if serviceType != models.QSealC {
+				if serviceType != models.QSEAL {
 					continue
 				}
 				cert := tspService.ServiceInformation.getPemCert()

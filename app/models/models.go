@@ -9,12 +9,19 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+type CertUsage string
+
+const (
+	QWAC    CertUsage = "QWAC"
+	QSEAL   CertUsage = "QSEAL"
+	UNKNOWN CertUsage = "UNKNOWN"
+)
+
 type Service string
 
 const (
-	AISP Service = "AISP"
-	PISP Service = "PISP"
-	// CBPII Service = "CBPII"
+	AISP Service = "AIS"
+	PISP Service = "PIS"
 )
 
 func serviceFromString(str string) (Service, error) {
@@ -34,7 +41,7 @@ type TPP struct {
 	Authority    string               `bson:"authority"`
 	Services     map[string][]Service `bson:"services"`
 	AuthorizedAt time.Time            `bson:"authorized_at"`
-	WithdrawnAt  time.Time            `bson:"withdrawn_at"`
+	WithdrawnAt  *time.Time           `bson:"withdrawn_at"`
 	Type         string               `bson:"type"`
 	CreatedAt    time.Time            `bson:"created_at"`
 	UpdatedAt    time.Time            `bson:"updated_at"`
@@ -120,7 +127,7 @@ func (t *TPP) UnmarshalJSON(data []byte) error {
 						t.AuthorizedAt = parsedTime
 					}
 					if parsedTime, ok := parseDate(entAut[1]); ok {
-						t.WithdrawnAt = parsedTime
+						t.WithdrawnAt = &parsedTime
 					}
 				}
 			}
@@ -163,13 +170,6 @@ const (
 	EBA Register = "EBA"
 )
 
-type CertType string
-
-const (
-	QWAC   CertType = "QWAC"
-	QSealC CertType = "QSealC"
-)
-
 type Position string
 
 const (
@@ -178,11 +178,19 @@ const (
 	Leaf         Position = "Leaf"
 )
 
+type ObRole string
+
+const (
+	PSP_PI ObRole = "PSP_PI"
+	PSP_AI ObRole = "PSP_AI"
+)
+
 type Scope string
 
 const (
-	AIS Scope = "AIS"
-	PIS Scope = "PIS"
+	ScopeAIS     Scope = "AIS"
+	ScopePIS     Scope = "PIS"
+	ScopeUnknown Scope = "UNKNOWN"
 )
 
 type ParsedCert struct {
@@ -193,7 +201,7 @@ type ParsedCert struct {
 	Registers    []Register
 	NotBefore    time.Time
 	NotAfter     time.Time
-	Type         CertType // types?
+	Type         CertUsage
 	Position     Position
 	Scopes       []Scope
 	RootSha256   *string `bson:"root_sha256,omitempty"` // sha256 of the root certificate, if this is an intermediate or leaf certificate
