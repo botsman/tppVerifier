@@ -1,25 +1,21 @@
 package main
 
 import (
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 
+	"github.com/botsman/tppVerifier/app/cert"
 	"github.com/botsman/tppVerifier/app/models"
 )
 
-
-
-const certPrefix = "-----BEGIN CERTIFICATE-----"
-const certSuffix = "-----END CERTIFICATE-----"
-
-
-func parseCert(cert RawCert) (models.ParsedCert, error) {
-	var certPem = cert.Pem
-	formattedCert := fmt.Sprintf("%s\n%s\n%s", certPrefix, certPem, certSuffix)
-	var block, _ = pem.Decode([]byte(formattedCert))
+func parseCert(crt RawCert) (models.ParsedCert, error) {
+	var certPem = crt.Pem
+	formattedCert, err := cert.FormatCertContent([]byte(certPem))
+	if err != nil {
+		return models.ParsedCert{}, err
+	}
+	var block, _ = pem.Decode(formattedCert)
 	if block == nil {
 		return models.ParsedCert{}, fmt.Errorf("failed to parse certificate")
 	}
@@ -29,18 +25,13 @@ func parseCert(cert RawCert) (models.ParsedCert, error) {
 	}
 
 	return models.ParsedCert{
-		Pem:          cert.Pem,
+		Pem:          crt.Pem,
 		SerialNumber: x509Cert.SerialNumber.String(),
-		Sha256:       getSha256(x509Cert),
+		Sha256:       cert.GetSha256(x509Cert),
 		Registers:    []models.Register{models.EBA},
 		NotBefore:    x509Cert.NotBefore,
 		NotAfter:     x509Cert.NotAfter,
-		Type:         cert.Type,
+		Type:         crt.Type,
 		Position:     models.Root,
 	}, nil
-}
-
-func getSha256(cert *x509.Certificate) string {
-	checksum := sha256.Sum256(cert.Raw)
-	return hex.EncodeToString(checksum[:])
 }

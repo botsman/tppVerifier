@@ -4,11 +4,12 @@ import (
 	"encoding/asn1"
 	"log"
     "github.com/botsman/tppVerifier/app/verify"
+    "github.com/botsman/tppVerifier/app/cert"
 )
 
 
 func encodeQcStatements() ([]byte, error) {
-    qcStatements := []verify.QCStatement{
+    qcStatements := []cert.QCStatement{
         {
             ID: asn1.ObjectIdentifier{0, 4, 0, 1862, 1, 1},
             Value: asn1.RawValue{
@@ -43,8 +44,8 @@ func encodeQcStatements() ([]byte, error) {
         {
             ID: asn1.ObjectIdentifier{0, 4, 0, 19495, 2},
             Value: asn1.RawValue{
-                FullBytes: mustEncodeASN1(verify.PSD2QcType{
-                    RolesOfPSP: []verify.Role{
+                FullBytes: mustEncodeASN1(cert.PSD2QcType{
+                    RolesOfPSP: []cert.Role{
                         {OID: asn1.ObjectIdentifier{0, 4, 0, 19495, 1, 1}, Value: "PSP_PI"},
                         {OID: asn1.ObjectIdentifier{0, 4, 0, 19495, 1, 2}, Value: "PSP_AI"},
                     },

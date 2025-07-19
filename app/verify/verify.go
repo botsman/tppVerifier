@@ -5,20 +5,18 @@ import (
 	"slices"
 	"time"
 
+	"github.com/botsman/tppVerifier/app/cert"
 	"github.com/botsman/tppVerifier/app/db"
 	vhttp "github.com/botsman/tppVerifier/app/http"
 	"github.com/botsman/tppVerifier/app/models"
 
 	"bytes"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
-	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"io"
 	"log"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/ocsp"
@@ -44,7 +42,7 @@ type VerifyRequest struct {
 }
 
 type VerifyResult struct {
-	Certificate *ParsedCert         `json:"cert"`
+	Certificate *cert.ParsedCert    `json:"cert"`
 	TPP         *models.TPP         `json:"tpp"`
 	Valid       bool                `json:"valid"`
 	Scopes      map[string][]string `json:"scopes"`
@@ -121,14 +119,14 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 		return
 	}
 	result := VerifyResult{}
-	cert, err := s.parseCert(c, req.Cert)
+	cert, err := cert.ParseCert(c, req.Cert)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
-	result.Certificate = &cert
+	result.Certificate = cert
 	tpp, err := s.getTpp(c, cert.CompanyId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -166,56 +164,9 @@ func (s *VerifySvc) getTpp(c *gin.Context, id string) (*models.TPP, error) {
 	return tpp, nil
 }
 
-type ParsedCert struct {
-	cert        *x509.Certificate
-	CompanyId   string
-	Scopes      []Scope
-	ParentLinks []string
-	CRLs        []string
-	OCSPs       []string
-	Usage       CertUsage
-	Serial      string
-	Sha256      string
-	NCA         NCA
-}
-
-type CertUsage string
-
-const (
-	QWAC    CertUsage = "QWAC"
-	QSEAL   CertUsage = "QSEAL"
-	UNKNOWN CertUsage = "UNKNOWN"
-)
-
-type Scope string
-
-const (
-	// PSP_AS Scope = "PSP_AS"
-	PSP_PI Scope = "PSP_PI"
-	PSP_AI Scope = "PSP_AI"
-	// PSP_IC Scope = "PSP_IC"
-)
-
-type QCStatement struct {
-	ID    asn1.ObjectIdentifier
-	Value asn1.RawValue `asn1:"optional"`
-}
-
 type Role struct {
 	OID   asn1.ObjectIdentifier
-	Value Scope
-}
-
-type PSD2QcType struct {
-	RolesOfPSP []Role
-	NCAName    string
-	NCAId      string
-}
-
-type NCA struct {
-	Country string
-	Name    string
-	Id      string
+	Value models.Scope
 }
 
 type URLStruct struct {
@@ -226,100 +177,6 @@ type URLStruct struct {
 type certVerifyResult struct {
 	Valid  bool
 	Reason string
-}
-
-func getCertOBScopes(cert *x509.Certificate) ([]Scope, error) {
-	for _, ext := range cert.Extensions {
-		if !ext.Id.Equal(asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 3}) {
-			continue
-		}
-		var qcStatements []QCStatement
-		_, err := asn1.Unmarshal(ext.Value, &qcStatements)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, stmt := range qcStatements {
-			switch {
-			// case stmt.ID.Equal(asn1.ObjectIdentifier{0, 4, 0, 1862, 1, 5}):
-			// 	var urlStructs []URLStruct
-			// 	_, err := asn1.Unmarshal(stmt.Value.FullBytes, &urlStructs)
-			// 	if err != nil {
-			// 		fmt.Println(err)
-			// 	}
-			// 	for _, urlStruct := range urlStructs {
-			// 		fmt.Println(urlStruct.URL, urlStruct.Lang)
-			// 	}
-			case stmt.ID.Equal(asn1.ObjectIdentifier{0, 4, 0, 19495, 2}):
-				var psd2 PSD2QcType
-				_, err := asn1.Unmarshal(stmt.Value.FullBytes, &psd2)
-				if err != nil {
-					return nil, err
-				}
-				roles := make([]Scope, 0)
-				for _, role := range psd2.RolesOfPSP {
-					roles = append(roles, role.Value)
-				}
-				return roles, nil
-			}
-		}
-	}
-	return nil, nil
-}
-
-func getCertNCA(cert *x509.Certificate) (NCA, error) {
-	for _, ext := range cert.Extensions {
-		if !ext.Id.Equal(asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 3}) {
-			continue
-		}
-		var qcStatements []QCStatement
-		_, err := asn1.Unmarshal(ext.Value, &qcStatements)
-		if err != nil {
-			return NCA{}, err
-		}
-
-		for _, stmt := range qcStatements {
-			switch {
-			// case stmt.ID.Equal(asn1.ObjectIdentifier{0, 4, 0, 1862, 1, 5}):
-			// 	var urlStructs []URLStruct
-			// 	_, err := asn1.Unmarshal(stmt.Value.FullBytes, &urlStructs)
-			// 	if err != nil {
-			// 		fmt.Println(err)
-			// 	}
-			// 	for _, urlStruct := range urlStructs {
-			// 		fmt.Println(urlStruct.URL, urlStruct.Lang)
-			// 	}
-			case stmt.ID.Equal(asn1.ObjectIdentifier{0, 4, 0, 19495, 2}):
-				var psd2 PSD2QcType
-				_, err := asn1.Unmarshal(stmt.Value.FullBytes, &psd2)
-				if err != nil {
-					return NCA{}, err
-				}
-				country := psd2.NCAId[:2]
-				return NCA{Country: country, Name: psd2.NCAName, Id: psd2.NCAId}, nil
-			}
-		}
-	}
-	return NCA{}, nil
-}
-
-func getCertUsage(cert *x509.Certificate) CertUsage {
-	// Maybe this should be identified based on certificate policy
-	switch cert.KeyUsage {
-	case x509.KeyUsageKeyEncipherment:
-		return QWAC
-	case x509.KeyUsageContentCommitment:
-		return QSEAL
-	default:
-		// perhaps identify based on the extended key usage or certificate policy
-		log.Printf("Unknown certificate usage: %v", cert.KeyUsage)
-		return UNKNOWN
-	}
-}
-
-func getSha256(cert *x509.Certificate) string {
-	checksum := sha256.Sum256(cert.Raw)
-	return hex.EncodeToString(checksum[:])
 }
 
 func (s *VerifySvc) isRevoked(c, issuer *x509.Certificate) (bool, error) {
@@ -396,82 +253,25 @@ func (s *VerifySvc) isTrusted(cert *x509.Certificate) (bool, []*x509.Certificate
 	return true, chains[0], nil
 }
 
-func formatCertContent(content []byte) ([]byte, error) {
-	certPrefix := "-----BEGIN CERTIFICATE-----"
-	certSuffix := "-----END CERTIFICATE-----"
-	pemLineLength := 64
-	contentString := string(content)
-	contentString = strings.Replace(contentString, certPrefix, "", 1)
-	contentString = strings.Replace(contentString, certSuffix, "", 1)
-	contentString = strings.ReplaceAll(contentString, "\n", "")
-	contentString = strings.ReplaceAll(contentString, " ", "")
-	contentString = strings.ReplaceAll(contentString, "\r", "")
-	var buffer bytes.Buffer
-	buffer.WriteString(certPrefix)
-	buffer.WriteString("\n")
-	for i := 0; i < len(contentString); i += pemLineLength {
-		end := min(i+pemLineLength, len(contentString))
-		buffer.WriteString(contentString[i:end])
-		buffer.WriteString("\n")
-	}
-	buffer.WriteString(certSuffix)
-	return buffer.Bytes(), nil
-}
-
-func (s *VerifySvc) parseCert(_ *gin.Context, data []byte) (ParsedCert, error) {
-	data, err := formatCertContent(data)
-	if err != nil {
-		return ParsedCert{}, err
-	}
-	p, _ := pem.Decode(data) // ignore rest for now, maybe use it later
-	if p == nil {
-		return ParsedCert{}, errors.New("error parsing certificate")
-	}
-	x509Cert, err := x509.ParseCertificate(p.Bytes)
-	if err != nil {
-		return ParsedCert{}, err
-	}
-	var cert ParsedCert
-	cert.cert = x509Cert
-	cert.CompanyId = x509Cert.Subject.SerialNumber
-	scopes, err := getCertOBScopes(x509Cert)
-	if err != nil {
-		return ParsedCert{}, err
-	}
-	cert.Scopes = scopes
-	cert.ParentLinks = x509Cert.IssuingCertificateURL
-	cert.CRLs = x509Cert.CRLDistributionPoints
-	cert.OCSPs = x509Cert.OCSPServer
-	cert.Usage = getCertUsage(x509Cert)
-	cert.Serial = x509Cert.SerialNumber.String()
-	cert.Sha256 = getSha256(x509Cert)
-	nca, err := getCertNCA(x509Cert)
-	if err != nil {
-		return ParsedCert{}, err
-	}
-	cert.NCA = nca
-	return cert, nil
-}
-
-func (s *VerifySvc) verifyCert(c *gin.Context, cert ParsedCert) (certVerifyResult, error) {
+func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerifyResult, error) {
 	result := certVerifyResult{
 		Valid:  true,
 		Reason: "",
 	}
-	if cert.Usage == UNKNOWN {
+	if crt.Usage == models.UNKNOWN {
 		result.Valid = false
 		result.Reason = "Unknown certificate usage"
 		return result, nil
 	}
 
-	err := s.loadCertChain(c, cert.cert.IssuingCertificateURL[0])
+	err := s.loadCertChain(c, crt.Cert.IssuingCertificateURL[0])
 	if err != nil {
 		log.Printf("Error loading certificate chain: %s", err)
 		result.Valid = false
 		result.Reason = "Error loading certificate chain"
 		return result, nil
 	}
-	isTrusted, chain, err := s.isTrusted(cert.cert)
+	isTrusted, chain, err := s.isTrusted(crt.Cert)
 	if err != nil {
 		log.Printf("Error checking if certificate is trusted: %s", err)
 		result.Valid = false
@@ -485,7 +285,7 @@ func (s *VerifySvc) verifyCert(c *gin.Context, cert ParsedCert) (certVerifyResul
 		return result, nil
 	}
 
-	isRevoked, err := s.isRevoked(cert.cert, chain[len(chain)-1])
+	isRevoked, err := s.isRevoked(crt.Cert, chain[len(chain)-1])
 	if err != nil {
 		log.Printf("Error checking certificate revocation: %s", err)
 		result.Valid = false
@@ -531,7 +331,7 @@ func (s *VerifySvc) loadCertChain(c *gin.Context, link string) error {
 			log.Printf("Error downloading certificate chain: %s", resp.Status)
 			return errors.New("error downloading certificate chain")
 		}
-		certs, err := loadCerts(c, resp.Body)
+		certs, err := s.loadCerts(c, resp.Body)
 		if err != nil {
 			log.Printf("Error loading certificates from response body: %s", err)
 			return err
@@ -540,48 +340,45 @@ func (s *VerifySvc) loadCertChain(c *gin.Context, link string) error {
 			log.Printf("No certificates found in certificate chain response")
 			return errors.New("no certificates found in certificate chain response")
 		}
-		for _, cert := range certs {
-			for _, link := range cert.IssuingCertificateURL {
+		for _, crt := range certs {
+			for _, link := range crt.Cert.IssuingCertificateURL {
 				if s.LinkExists(link) {
 					log.Printf("Link %s already exists, skipping", link)
 					return nil
 				}
 				s.addLink(link)
+				s.db.AddIntermediateCertificate(c, crt)
 			}
 			// Add the certificate to the intermediate pool
-			s.AddIntermediate(cert)
-			log.Printf("Added certificate with SHA256 %s to the intermediate pool", getSha256(cert))
+			s.AddIntermediate(crt.Cert)
+			log.Printf("Added certificate with SHA256 %s to the intermediate pool", cert.GetSha256(crt.Cert))
 		}
-		parentCert := certs[len(certs)-1] // Get the last certificate in the chain
+		parentCert := certs[len(certs)-1].Cert // Get the last certificate in the chain
 		if len(parentCert.IssuingCertificateURL) == 0 {
 			log.Printf("No parent certificate link found in the last certificate of the chain")
 			break
 		}
-		parentLink = certs[len(certs)-1].IssuingCertificateURL[0] // Get the parent link from the last certificate in the chain
+		parentLink = certs[len(certs)-1].Cert.IssuingCertificateURL[0] // Get the parent link from the last certificate in the chain
 	}
 	return nil
 }
 
-func loadCerts(_ *gin.Context, body io.ReadCloser) ([]*x509.Certificate, error) {
+func (s *VerifySvc) loadCerts(c *gin.Context, body io.ReadCloser) ([]*cert.ParsedCert, error) {
 	bodyBytes, err := io.ReadAll(body)
 	if err != nil {
 		log.Printf("Error reading response body: %s", err)
 		return nil, err
 	}
-	p, _ := pem.Decode(bodyBytes) // ignore rest for now, maybe use it later
-	if p == nil {
-		return nil, errors.New("error parsing certificate")
-	}
-	certs, err := x509.ParseCertificates(p.Bytes)
+	crt, err := cert.ParseCert(c, bodyBytes)
 	if err != nil {
-		log.Printf("Error parsing certificates from response body: %s", err)
+		log.Printf("Error parsing certificate: %s", err)
 		return nil, err
 	}
-	return certs, nil
+	return []*cert.ParsedCert{crt}, nil
 }
 
-func (s *VerifySvc) getScopes(c *gin.Context, cert ParsedCert, tpp *models.TPP) map[string][]string {
-	certServices := getCertServices(cert)
+func (s *VerifySvc) getScopes(c *gin.Context, crt *cert.ParsedCert, tpp *models.TPP) map[string][]string {
+	certServices := getCertServices(*crt)
 	if len(certServices) == 0 {
 		log.Printf("No services found in the certificate for TPP %s", tpp.Id)
 		return nil
@@ -597,13 +394,13 @@ func (s *VerifySvc) getScopes(c *gin.Context, cert ParsedCert, tpp *models.TPP) 
 	return scopes
 }
 
-func getCertServices(cert ParsedCert) []models.Service {
+func getCertServices(crt cert.ParsedCert) []models.Service {
 	services := make([]models.Service, 0)
-	for _, scope := range cert.Scopes {
+	for _, scope := range crt.Scopes {
 		switch scope {
-		case PSP_PI:
+		case models.ScopePIS:
 			services = append(services, models.PISP)
-		case PSP_AI:
+		case models.ScopeAIS:
 			services = append(services, models.AISP)
 		default:
 			log.Printf("Unknown scope in certificate: %s", scope)
