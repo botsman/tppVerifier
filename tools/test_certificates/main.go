@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"log"
 	"github.com/botsman/tppVerifier/app/verify"
+	"github.com/botsman/tppVerifier/app/cert"
 )
 
 func parseQcStatements(data []byte) error {
 	// Parse ASN.1 Sequence
-	var qcStatements []verify.QCStatement
+	var qcStatements []cert.QCStatement
 	_, err := asn1.Unmarshal(data, &qcStatements)
 	if err != nil {
 		log.Fatalf("Failed to unmarshal ASN.1: %v", err)
@@ -28,7 +29,7 @@ func parseQcStatements(data []byte) error {
 				fmt.Println(urlStruct.URL, urlStruct.Lang)
 			}
 		case stmt.ID.Equal(asn1.ObjectIdentifier{0, 4, 0, 19495, 2}):
-			var psd2 verify.PSD2QcType
+			var psd2 cert.PSD2QcType
 			_, err := asn1.Unmarshal(stmt.Value.FullBytes, &psd2)
 			if err != nil {
 				fmt.Println(err)
