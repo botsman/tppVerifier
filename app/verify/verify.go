@@ -119,7 +119,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 		return
 	}
 	result := VerifyResult{}
-	cert, err := cert.ParseCert(c, req.Cert)
+	cert, err := cert.ParseCert(req.Cert)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
@@ -127,7 +127,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 		return
 	}
 	result.Certificate = cert
-	tpp, err := s.getTpp(c, cert.CompanyId)
+	tpp, err := s.getTpp(c, cert.CompanyId())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
@@ -258,7 +258,7 @@ func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerify
 		Valid:  true,
 		Reason: "",
 	}
-	if crt.Usage == models.UNKNOWN {
+	if crt.Usage() == models.UNKNOWN {
 		result.Valid = false
 		result.Reason = "Unknown certificate usage"
 		return result, nil
@@ -351,7 +351,7 @@ func (s *VerifySvc) loadCertChain(c *gin.Context, link string) error {
 			}
 			// Add the certificate to the intermediate pool
 			s.AddIntermediate(crt.Cert)
-			log.Printf("Added certificate with SHA256 %s to the intermediate pool", cert.GetSha256(crt.Cert))
+			log.Printf("Added certificate with SHA256 %s to the intermediate pool", crt.Sha256())
 		}
 		parentCert := certs[len(certs)-1].Cert // Get the last certificate in the chain
 		if len(parentCert.IssuingCertificateURL) == 0 {
@@ -369,7 +369,7 @@ func (s *VerifySvc) loadCerts(c *gin.Context, body io.ReadCloser) ([]*cert.Parse
 		log.Printf("Error reading response body: %s", err)
 		return nil, err
 	}
-	crt, err := cert.ParseCert(c, bodyBytes)
+	crt, err := cert.ParseCert(bodyBytes)
 	if err != nil {
 		log.Printf("Error parsing certificate: %s", err)
 		return nil, err
@@ -396,7 +396,12 @@ func (s *VerifySvc) getScopes(c *gin.Context, crt *cert.ParsedCert, tpp *models.
 
 func getCertServices(crt cert.ParsedCert) []models.Service {
 	services := make([]models.Service, 0)
-	for _, scope := range crt.Scopes {
+	scopes, err := crt.OBScopes()
+	if err != nil {
+		log.Printf("Error getting OB scopes from certificate: %s", err)
+		return nil
+	}
+	for _, scope := range scopes {
 		switch scope {
 		case models.ScopePIS:
 			services = append(services, models.PISP)

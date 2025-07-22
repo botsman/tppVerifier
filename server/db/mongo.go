@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"os"
-	"time"
 
 	"github.com/botsman/tppVerifier/app/models"
 	"github.com/botsman/tppVerifier/app/cert"
@@ -74,11 +73,11 @@ func (r *TppMongoRepository) GetRootCertificates(ctx context.Context) ([]string,
 
 	var roots []string
 	for cursor.Next(ctx) {
-		var tpp models.ParsedCert
-		if err := cursor.Decode(&tpp); err != nil {
+		var crt cert.ParsedCert
+		if err := cursor.Decode(&crt); err != nil {
 			return nil, err
 		}
-		roots = append(roots, tpp.Pem)
+		roots = append(roots, string(crt.Cert.Raw))
 	}
 	if err := cursor.Err(); err != nil {
 		return nil, err
@@ -90,7 +89,7 @@ func (r *TppMongoRepository) AddIntermediateCertificate(ctx context.Context, cer
 	if cert == nil {
 		return errors.New("certificate cannot be nil")
 	}
-	certBson, err := cert.ToBson(time.Now())
+	certBson, err := cert.ToBson()
 	if err != nil {
 		return err
 	}
