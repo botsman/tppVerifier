@@ -12,20 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/botsman/tppVerifier/app/models"
 )
-
-// type Scope string
-
-// const (
-// 	// PSP_AS Scope = "PSP_AS"
-// 	PSP_PI Scope = "PSP_PI"
-// 	PSP_AI Scope = "PSP_AI"
-// 	// PSP_IC Scope = "PSP_IC"
-// )
 
 type PSD2QcType struct {
 	RolesOfPSP []Role
@@ -37,8 +27,6 @@ type Role struct {
 	OID   asn1.ObjectIdentifier
 	Value models.ObRole
 }
-
-
 
 type QCStatement struct {
 	ID    asn1.ObjectIdentifier
@@ -52,43 +40,80 @@ type NCA struct {
 }
 
 type ParsedCert struct {
-	Cert        *x509.Certificate `json:"-"`
-	CompanyId   string
-	Scopes      []models.Scope
-	ParentLinks []string
-	CRLs        []string
-	OCSPs       []string
-	Usage       models.CertUsage
-	Serial      string
-	Sha256      string
-	NCA         NCA
+	Cert      *x509.Certificate `json:"-"`
+	Registers []models.Register
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	IsActive  bool
+	Position  models.Position
 }
 
-func (c *ParsedCert) ToBson(now time.Time) (bson.M, error) {
+func (c *ParsedCert) ToBson() (bson.M, error) {
 	if c.Cert == nil {
 		return nil, errors.New("certificate is nil")
 	}
 	res := bson.M{
 		"pem":           c.Cert.Raw,
-		"serial_number": c.Serial,
-		"sha256":        c.Sha256,
-		// "links":         c.ParentLinks,
+		"serial_number": c.Cert.SerialNumber.String(),
+		"sha256":        c.Sha256(),
+		"registers":     c.Registers,
 		"not_before":    c.Cert.NotBefore,
 		"not_after":     c.Cert.NotAfter,
-		"type":          c.Usage,
-		// "position":      "intermediate",
-		// "scopes":        c.Scopes,
-		"nca":           c.NCA,
-		"created_at":    now,
-		"updated_at":    now,
+		"updated_at":    c.UpdatedAt,
+		"position":      c.Position,
 	}
-	if c.Scopes != nil {
-		res["scopes"] = c.Scopes
+	nca, err := c.NCA()
+	if err != nil {
+		return nil, err
+	}
+	if nca != nil {
+		res["nca"] = bson.M{
+			"country": nca.Country,
+			"name":    nca.Name,
+			"id":      nca.Id,
+		}
+	}
+	scopes, err := c.OBScopes()
+	if err != nil {
+		return nil, err
+	}
+	if scopes != nil {
+		res["scopes"] = scopes
+	}
+	if c.Position == models.Leaf {
+		res["usage"] = c.Usage()
 	}
 	return res, nil
 }
 
-func ParseCert(_ *gin.Context, data []byte) (*ParsedCert, error) {
+func (c *ParsedCert) UnmarshalBSON(data []byte) error {
+	var raw bson.M
+	if err := bson.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	c.Registers = raw["registers"].([]models.Register)
+	c.CreatedAt = raw["created_at"].(time.Time)
+	c.UpdatedAt = raw["updated_at"].(time.Time)
+	c.IsActive = raw["is_active"].(bool)
+	c.Position = raw["position"].(models.Position)
+
+	pemData := raw["pem"].([]byte)
+	p, _ := pem.Decode(pemData) // ignore rest for now, maybe use it later
+	if p == nil {
+		return errors.New("error parsing certificate")
+	}
+	c.Cert, _ = x509.ParseCertificate(p.Bytes) // ignore error for now
+	return nil
+}
+
+func (c *ParsedCert) CompanyId() string {
+	if c.Cert == nil {
+		return ""
+	}
+	return c.Cert.Subject.SerialNumber
+}
+
+func ParseCert(data []byte) (*ParsedCert, error) {
 	data, err := FormatCertContent(data)
 	if err != nil {
 		return nil, err
@@ -103,23 +128,6 @@ func ParseCert(_ *gin.Context, data []byte) (*ParsedCert, error) {
 	}
 	var cert ParsedCert
 	cert.Cert = x509Cert
-	cert.CompanyId = x509Cert.Subject.SerialNumber
-	scopes, err := getCertOBScopes(x509Cert)
-	if err != nil {
-		return nil, err
-	}
-	cert.Scopes = scopes
-	cert.ParentLinks = x509Cert.IssuingCertificateURL
-	cert.CRLs = x509Cert.CRLDistributionPoints
-	cert.OCSPs = x509Cert.OCSPServer
-	cert.Usage = getCertUsage(x509Cert)
-	cert.Serial = x509Cert.SerialNumber.String()
-	cert.Sha256 = GetSha256(x509Cert)
-	nca, err := getCertNCA(x509Cert)
-	if err != nil {
-		return nil, err
-	}
-	cert.NCA = nca
 	return &cert, nil
 }
 
@@ -145,7 +153,7 @@ func FormatCertContent(content []byte) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func getCertOBScopes(cert *x509.Certificate) ([]models.Scope, error) {
+func (c *ParsedCert) OBScopes() ([]models.Scope, error) {
 	roleToScope := func(role models.ObRole) models.Scope {
 		switch role {
 		case "PSP_PI":
@@ -156,7 +164,7 @@ func getCertOBScopes(cert *x509.Certificate) ([]models.Scope, error) {
 			return models.ScopeUnknown
 		}
 	}
-	for _, ext := range cert.Extensions {
+	for _, ext := range c.Cert.Extensions {
 		if !ext.Id.Equal(asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 3}) {
 			continue
 		}
@@ -194,34 +202,34 @@ func getCertOBScopes(cert *x509.Certificate) ([]models.Scope, error) {
 	return nil, nil
 }
 
-func getCertUsage(cert *x509.Certificate) models.CertUsage {
+func (c *ParsedCert) Usage() models.CertUsage {
 	// Maybe this should be identified based on certificate policy
-	switch cert.KeyUsage {
+	switch c.Cert.KeyUsage {
 	case x509.KeyUsageKeyEncipherment:
 		return models.QWAC
 	case x509.KeyUsageContentCommitment:
 		return models.QSEAL
 	default:
 		// perhaps identify based on the extended key usage or certificate policy
-		log.Printf("Unknown certificate usage: %v", cert.KeyUsage)
+		log.Printf("Unknown certificate usage: %v", c.Cert.KeyUsage)
 		return models.UNKNOWN
 	}
 }
 
-func GetSha256(cert *x509.Certificate) string {
-	checksum := sha256.Sum256(cert.Raw)
+func (c *ParsedCert) Sha256() string {
+	checksum := sha256.Sum256(c.Cert.Raw)
 	return hex.EncodeToString(checksum[:])
 }
 
-func getCertNCA(cert *x509.Certificate) (NCA, error) {
-	for _, ext := range cert.Extensions {
+func (c *ParsedCert) NCA() (*NCA, error) {
+	for _, ext := range c.Cert.Extensions {
 		if !ext.Id.Equal(asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 1, 3}) {
 			continue
 		}
 		var qcStatements []QCStatement
 		_, err := asn1.Unmarshal(ext.Value, &qcStatements)
 		if err != nil {
-			return NCA{}, err
+			return nil, err
 		}
 
 		for _, stmt := range qcStatements {
@@ -239,12 +247,12 @@ func getCertNCA(cert *x509.Certificate) (NCA, error) {
 				var psd2 PSD2QcType
 				_, err := asn1.Unmarshal(stmt.Value.FullBytes, &psd2)
 				if err != nil {
-					return NCA{}, err
+					return nil, err
 				}
 				country := psd2.NCAId[:2]
-				return NCA{Country: country, Name: psd2.NCAName, Id: psd2.NCAId}, nil
+				return &NCA{Country: country, Name: psd2.NCAName, Id: psd2.NCAId}, nil
 			}
 		}
 	}
-	return NCA{}, nil
+	return nil, nil
 }

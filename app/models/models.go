@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 	"unicode"
-
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 type CertUsage string
@@ -192,46 +190,3 @@ const (
 	ScopePIS     Scope = "PIS"
 	ScopeUnknown Scope = "UNKNOWN"
 )
-
-type ParsedCert struct {
-	Pem          string
-	SerialNumber string
-	Sha256       string
-	Links        []string
-	Registers    []Register
-	NotBefore    time.Time
-	NotAfter     time.Time
-	Type         CertUsage
-	Position     Position
-	Scopes       []Scope
-	RootSha256   *string `bson:"root_sha256,omitempty"` // sha256 of the root certificate, if this is an intermediate or leaf certificate
-	// CRLs		 []string ??
-	CreatedAt time.Time `bson:"created_at"`
-	UpdatedAt time.Time `bson:"updated_at"`
-	IsActive  bool      `bson:"is_active"`
-}
-
-func (c ParsedCert) ToBson(now time.Time) (bson.M, error) {
-	res := bson.M{
-		"pem":           c.Pem,
-		"serial_number": c.SerialNumber,
-		"sha256":        c.Sha256,
-		"registers":     c.Registers,
-		"not_before":    c.NotBefore,
-		"not_after":     c.NotAfter,
-		"type":          c.Type,
-		"position":      c.Position,
-		"updated_at":    now,
-		"is_active":     true,
-	}
-	if c.Links != nil {
-		res["links"] = c.Links
-	}
-	if c.RootSha256 != nil {
-		res["root_sha256"] = *c.RootSha256
-	}
-	if c.Scopes != nil {
-		res["scopes"] = c.Scopes
-	}
-	return res, nil
-}

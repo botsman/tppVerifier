@@ -16,6 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/botsman/tppVerifier/app/models"
+	"github.com/botsman/tppVerifier/app/cert"
 )
 
 // Load XML files from EBA
@@ -109,15 +110,15 @@ func parseXML(xmlData []byte) <-chan RawCert {
 					continue
 				}
 				serviceType := tspService.ServiceInformation.getType()
-				if serviceType != models.QSEAL {
+				if serviceType == "" {
 					continue
 				}
-				cert := tspService.ServiceInformation.getPemCert()
-				if cert == "" {
+				crt := tspService.ServiceInformation.getPemCert()
+				if crt == "" {
 					continue
 				}
 				certChan <- RawCert{
-					Pem:  cert,
+					Pem:  crt,
 					Type: serviceType,
 				}
 			}
@@ -134,8 +135,8 @@ func parseXMLs(xmlChan <-chan []byte) <-chan RawCert {
 		wg.Add(1)
 		go func(x []byte) {
 			defer wg.Done()
-			for cert := range parseXML(x) {
-				certsChan <- cert
+			for crt := range parseXML(x) {
+				certsChan <- crt
 			}
 		}(xml)
 	}
@@ -147,15 +148,21 @@ func parseXMLs(xmlChan <-chan []byte) <-chan RawCert {
 	return certsChan
 }
 
-func parseCerts(certChan <-chan RawCert) <-chan models.ParsedCert {
-	parsedCertChan := make(chan models.ParsedCert)
+func parseCerts(certChan <-chan RawCert, now time.Time) <-chan *cert.ParsedCert {
+	parsedCertChan := make(chan *cert.ParsedCert)
 	go func() {
 		defer close(parsedCertChan)
-		for cert := range certChan {
-			parsedCert, err := parseCert(cert)
+		for crt := range certChan {
+			parsedCert, err := cert.ParseCert([]byte(crt.Pem))
 			if err != nil {
 				fmt.Println(err)
 				continue
+			}
+			parsedCert.UpdatedAt = now
+			parsedCert.IsActive = true
+			parsedCert.Position = models.Root
+			parsedCert.Registers = []models.Register{
+				models.EBA,
 			}
 			parsedCertChan <- parsedCert
 		}
@@ -197,13 +204,13 @@ func main() {
 	httpClient := &http.Client{}
 	xmlChan := loadXMLs(httpClient)
 	certsChan := parseXMLs(xmlChan)
-	parsedCertsChan := parseCerts(certsChan)
+	parsedCertsChan := parseCerts(certsChan, now)
 	certsCollection := db.Database("tppVerifier").Collection("certs")
 	opts := options.Update().SetUpsert(true)
 	// TODO: use bulk for performance
-	for cert := range parsedCertsChan {
-		filter := bson.M{"sha256": cert.Sha256}
-		certSet, err := cert.ToBson(now)
+	for crt := range parsedCertsChan {
+		filter := bson.M{"sha256": crt.Sha256()}
+		certSet, err := crt.ToBson()
 		if err != nil {
 			fmt.Println("Error converting cert to BSON:", err)
 			continue
@@ -214,11 +221,16 @@ func main() {
 				"created_at": now, // Set created_at only on insert
 			},
 		}
-		certsCollection.UpdateOne(ctx,
+		_, err = certsCollection.UpdateOne(ctx,
 			filter,
 			update,
 			opts,
 		)
+		if err != nil {
+			fmt.Println("Error updating certificate:", err)
+			continue
+		}
+		
 	}
 
 	// Clean up all certificates that are not active

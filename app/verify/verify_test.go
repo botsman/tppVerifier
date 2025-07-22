@@ -257,48 +257,54 @@ func TestParseCert(t *testing.T) {
 	if svc == nil {
 		t.Fatal("Expected non-nil VerifySvc")
 	}
-	ctx := gin.Context{}
-
-	cert, err := cert.ParseCert(&ctx, []byte(certContent))
+	cert, err := cert.ParseCert([]byte(certContent))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 	t.Logf("Parsed certificate: %+v", cert)
-	if cert.CompanyId != "12345678" {
-		t.Errorf("Expected CompanyId '12345678', got '%s'", cert.CompanyId)
+	if cert.CompanyId() != "12345678" {
+		t.Errorf("Expected CompanyId '12345678', got '%s'", cert.CompanyId())
 	}
-	if len(cert.Scopes) == 0 {
+	scopes, err := cert.OBScopes()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if len(scopes) == 0 {
 		t.Error("Expected non-empty Scopes, got none")
 	}
-	if cert.Scopes[0] != models.ScopePIS || cert.Scopes[1] != models.ScopeAIS {
-		t.Errorf("Expected Scopes to contain models.AIS and models.PIS, got %v", cert.Scopes)
+	if scopes[0] != models.ScopePIS || scopes[1] != models.ScopeAIS {
+		t.Errorf("Expected Scopes to contain models.AIS and models.PIS, got %v", scopes)
 	}
-	if len(cert.ParentLinks) == 0 {
-		t.Error("Expected non-empty ParentLinks, got none")
+	if len(cert.Cert.IssuingCertificateURL) == 0 {
+		t.Error("Expected non-empty IssuingCertificateURL, got none")
 	}
-	if cert.ParentLinks[0] != "http://test.company.hu/CA.crt" {
-		t.Errorf("Expected ParentLinks to contain 'http://test.company.hu/CA.crt', got %s", cert.ParentLinks[0])
+	if cert.Cert.IssuingCertificateURL[0] != "http://test.company.hu/CA.crt" {
+		t.Errorf("Expected IssuingCertificateURL to contain 'http://test.company.hu/CA.crt', got %s", cert.Cert.IssuingCertificateURL[0])
 	}
-	if len(cert.CRLs) == 0 {
+	if len(cert.Cert.CRLDistributionPoints) == 0 {
 		t.Error("Expected non-empty CRLs, got none")
 	}
-	if cert.CRLs[0] != "http://test.company.hu/Some.crl" {
-		t.Errorf("Expected CRLs to contain 'http://test.company.hu/Some.crl', got %s", cert.CRLs[0])
+	if cert.Cert.CRLDistributionPoints[0] != "http://test.company.hu/Some.crl" {
+		t.Errorf("Expected CRLs to contain 'http://test.company.hu/Some.crl', got %s", cert.Cert.CRLDistributionPoints[0])
 	}
-	if cert.Sha256 == "" {
+	if cert.Sha256() == "" {
 		t.Error("Expected non-empty SHA256, got empty string")
 	}
-	if cert.Sha256 != "ef2527a44ccee556b6a5cabde31dda68e45165b2ec2ae67270b17cf01f4e8f1a" {
-		t.Errorf("Expected SHA256 'ef2527a44ccee556b6a5cabde31dda68e45165b2ec2ae67270b17cf01f4e8f1a', got '%s'", cert.Sha256)
+	if cert.Sha256() != "ef2527a44ccee556b6a5cabde31dda68e45165b2ec2ae67270b17cf01f4e8f1a" {
+		t.Errorf("Expected SHA256 'ef2527a44ccee556b6a5cabde31dda68e45165b2ec2ae67270b17cf01f4e8f1a', got '%s'", cert.Sha256())
 	}
-	if cert.NCA.Country != "FI" {
-		t.Errorf("Expected NCA Country 'FI', got '%s'", cert.NCA.Country)
+	nca, err := cert.NCA()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
 	}
-	if cert.NCA.Name != "Finnish Financial Supervisory Authority" {
-		t.Errorf("Expected NCA Name 'Finnish Financial Supervisory Authority', got '%s'", cert.NCA.Name)
+	if nca.Country != "FI" {
+		t.Errorf("Expected NCA Country 'FI', got '%s'", nca.Country)
 	}
-	if cert.NCA.Id != "FI-FINFSA" {
-		t.Errorf("Expected NCA Id 'FI-FINFSA', got '%s'", cert.NCA.Id)
+	if nca.Name != "Finnish Financial Supervisory Authority" {
+		t.Errorf("Expected NCA Name 'Finnish Financial Supervisory Authority', got '%s'", nca.Name)
+	}
+	if nca.Id != "FI-FINFSA" {
+		t.Errorf("Expected NCA Id 'FI-FINFSA', got '%s'", nca.Id)
 	}
 }
 
@@ -388,7 +394,7 @@ func TestVerifyCert(t *testing.T) {
 			return
 		}
 		svc.AddRoot(caCert)
-		cert, err := cert.ParseCert(&ctx, []byte(certContent))
+		cert, err := cert.ParseCert([]byte(certContent))
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -424,7 +430,7 @@ func TestGetScopes(t *testing.T) {
 	if tpp == nil {
 		t.Fatal("Expected non-nil TPP")
 	}
-	cert, err := cert.ParseCert(&ctx, []byte(certContent))
+	cert, err := cert.ParseCert([]byte(certContent))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
