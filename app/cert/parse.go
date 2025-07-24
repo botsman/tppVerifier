@@ -1,7 +1,6 @@
 package cert
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
@@ -9,7 +8,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"log"
-	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -52,8 +50,12 @@ func (c *ParsedCert) ToBson() (bson.M, error) {
 	if c.Cert == nil {
 		return nil, errors.New("certificate is nil")
 	}
+	rawCertPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c.Cert.Raw})
+	if rawCertPem == nil {
+		return nil, errors.New("error encoding certificate to PEM format")
+	}
 	res := bson.M{
-		"pem":           c.Cert.Raw,
+		"pem":           rawCertPem,
 		"serial_number": c.Cert.SerialNumber.String(),
 		"sha256":        c.Sha256(),
 		"registers":     c.Registers,
@@ -98,7 +100,8 @@ func (c *ParsedCert) UnmarshalBSON(data []byte) error {
 	c.Position = raw["position"].(models.Position)
 
 	pemData := raw["pem"].([]byte)
-	p, _ := pem.Decode(pemData) // ignore rest for now, maybe use it later
+	// ignore rest as we expect only PEM data in the DB
+	p, _ := pem.Decode(pemData)
 	if p == nil {
 		return errors.New("error parsing certificate")
 	}
@@ -113,44 +116,29 @@ func (c *ParsedCert) CompanyId() string {
 	return c.Cert.Subject.SerialNumber
 }
 
-func ParseCert(data []byte) (*ParsedCert, error) {
-	data, err := FormatCertContent(data)
-	if err != nil {
-		return nil, err
+func ParseCerts(data []byte) ([]*ParsedCert, error) {
+	if len(data) == 0 {
+		return nil, errors.New("no data provided")
 	}
-	p, _ := pem.Decode(data) // ignore rest for now, maybe use it later
-	if p == nil {
-		return nil, errors.New("error parsing certificate")
+	certs := []*ParsedCert{}
+	for {
+		p, rest := pem.Decode(data)
+		if p == nil {
+			return nil, errors.New("error parsing certificate")
+		}
+		x509Cert, err := x509.ParseCertificate(p.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		var cert ParsedCert
+		cert.Cert = x509Cert
+		certs = append(certs, &cert)
+		if len(rest) == 0 {
+			break
+		}
+		data = rest
 	}
-	x509Cert, err := x509.ParseCertificate(p.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	var cert ParsedCert
-	cert.Cert = x509Cert
-	return &cert, nil
-}
-
-func FormatCertContent(content []byte) ([]byte, error) {
-	certPrefix := "-----BEGIN CERTIFICATE-----"
-	certSuffix := "-----END CERTIFICATE-----"
-	pemLineLength := 64
-	contentString := string(content)
-	contentString = strings.Replace(contentString, certPrefix, "", 1)
-	contentString = strings.Replace(contentString, certSuffix, "", 1)
-	contentString = strings.ReplaceAll(contentString, "\n", "")
-	contentString = strings.ReplaceAll(contentString, " ", "")
-	contentString = strings.ReplaceAll(contentString, "\r", "")
-	var buffer bytes.Buffer
-	buffer.WriteString(certPrefix)
-	buffer.WriteString("\n")
-	for i := 0; i < len(contentString); i += pemLineLength {
-		end := min(i+pemLineLength, len(contentString))
-		buffer.WriteString(contentString[i:end])
-		buffer.WriteString("\n")
-	}
-	buffer.WriteString(certSuffix)
-	return buffer.Bytes(), nil
+	return certs, nil
 }
 
 func (c *ParsedCert) OBScopes() ([]models.Scope, error) {

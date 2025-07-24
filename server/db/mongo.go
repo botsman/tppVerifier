@@ -64,8 +64,11 @@ func (r *TppMongoRepository) GetTpp(ctx context.Context, id string) (*models.TPP
 }
 
 func (r *TppMongoRepository) GetRootCertificates(ctx context.Context) ([]string, error) {
-	// Get all certificates from the "certs" collection for now
-	cursor, err := r.db.Collection("certs").Find(ctx, bson.M{})
+	filter := bson.M{
+		"is_active": true,
+		"position":  models.Root,
+	}
+	cursor, err := r.db.Collection("certs").Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}

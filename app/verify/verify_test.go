@@ -257,10 +257,11 @@ func TestParseCert(t *testing.T) {
 	if svc == nil {
 		t.Fatal("Expected non-nil VerifySvc")
 	}
-	cert, err := cert.ParseCert([]byte(certContent))
+	certs, err := cert.ParseCerts([]byte(certContent))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
+	cert := certs[0]
 	t.Logf("Parsed certificate: %+v", cert)
 	if cert.CompanyId() != "12345678" {
 		t.Errorf("Expected CompanyId '12345678', got '%s'", cert.CompanyId())
@@ -394,10 +395,14 @@ func TestVerifyCert(t *testing.T) {
 			return
 		}
 		svc.AddRoot(caCert)
-		cert, err := cert.ParseCert([]byte(certContent))
+		certs, err := cert.ParseCerts([]byte(certContent))
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
+		if len(certs) == 0 {
+			t.Fatal("Expected non-empty certificate slice")
+		}
+		cert := certs[0]
 		t.Logf("Parsed certificate: %+v", cert)
 		// Simulate a successful verification
 
@@ -430,10 +435,14 @@ func TestGetScopes(t *testing.T) {
 	if tpp == nil {
 		t.Fatal("Expected non-nil TPP")
 	}
-	cert, err := cert.ParseCert([]byte(certContent))
+	certs, err := cert.ParseCerts([]byte(certContent))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
+	if len(certs) == 0 {
+		t.Fatal("Expected non-empty certificate slice")
+	}
+	cert := certs[0]
 	scopes := svc.getScopes(&ctx, cert, tpp)
 	if len(scopes) == 0 {
 		t.Fatal("Expected non-empty scopes")
