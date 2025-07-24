@@ -119,13 +119,20 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 		return
 	}
 	result := VerifyResult{}
-	cert, err := cert.ParseCert(req.Cert)
+	certs, err := cert.ParseCerts(req.Cert)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
 		return
 	}
+	if len(certs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "No valid certificate found",
+		})
+		return
+	}
+	cert := certs[0]
 	result.Certificate = cert
 	tpp, err := s.getTpp(c, cert.CompanyId())
 	if err != nil {
@@ -369,12 +376,12 @@ func (s *VerifySvc) loadCerts(c *gin.Context, body io.ReadCloser) ([]*cert.Parse
 		log.Printf("Error reading response body: %s", err)
 		return nil, err
 	}
-	crt, err := cert.ParseCert(bodyBytes)
+	certs, err := cert.ParseCerts(bodyBytes)
 	if err != nil {
 		log.Printf("Error parsing certificate: %s", err)
 		return nil, err
 	}
-	return []*cert.ParsedCert{crt}, nil
+	return certs, nil
 }
 
 func (s *VerifySvc) getScopes(c *gin.Context, crt *cert.ParsedCert, tpp *models.TPP) map[string][]string {

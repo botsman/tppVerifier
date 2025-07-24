@@ -15,8 +15,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/botsman/tppVerifier/app/models"
 	"github.com/botsman/tppVerifier/app/cert"
+	"github.com/botsman/tppVerifier/app/models"
 )
 
 // Load XML files from EBA
@@ -153,18 +153,20 @@ func parseCerts(certChan <-chan RawCert, now time.Time) <-chan *cert.ParsedCert 
 	go func() {
 		defer close(parsedCertChan)
 		for crt := range certChan {
-			parsedCert, err := cert.ParseCert([]byte(crt.Pem))
+			parsedCerts, err := cert.ParseCerts([]byte(crt.Pem))
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			parsedCert.UpdatedAt = now
-			parsedCert.IsActive = true
-			parsedCert.Position = models.Root
-			parsedCert.Registers = []models.Register{
-				models.EBA,
+			for _, parsedCert := range parsedCerts {
+				parsedCert.UpdatedAt = now
+				parsedCert.IsActive = true
+				parsedCert.Position = models.Root
+				parsedCert.Registers = []models.Register{
+					models.EBA,
+				}
+				parsedCertChan <- parsedCert
 			}
-			parsedCertChan <- parsedCert
 		}
 	}()
 	return parsedCertChan
@@ -230,7 +232,7 @@ func main() {
 			fmt.Println("Error updating certificate:", err)
 			continue
 		}
-		
+
 	}
 
 	// Clean up all certificates that are not active
@@ -238,8 +240,8 @@ func main() {
 	// current run
 	cleanupRes, err := certsCollection.UpdateMany(ctx,
 		bson.M{
-			"is_active": true,
-			"position": bson.M{"$eq": models.Root},
+			"is_active":  true,
+			"position":   bson.M{"$eq": models.Root},
 			"updated_at": bson.M{"$ne": now},
 		},
 		bson.M{
