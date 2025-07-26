@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/botsman/tppVerifier/app/models"
+	"github.com/fullsailor/pkcs7"
 )
 
 type PSD2QcType struct {
@@ -44,6 +45,35 @@ type ParsedCert struct {
 	UpdatedAt time.Time
 	IsActive  bool
 	Position  models.Position
+}
+
+type certFormat string
+
+const (
+	CertFormatPEM   certFormat = "PEM"
+	CertFormatDER   certFormat = "DER"
+	CertFormatPKCS7 certFormat = "PKCS7"
+)
+
+func GetCertFormat(crtContent []byte) (certFormat, error) {
+	if len(crtContent) == 0 {
+		return "", errors.New("certificate content is empty")
+	}
+	block, _ := pem.Decode(crtContent)
+	if block != nil {
+		if block.Type != "CERTIFICATE" {
+			return "", errors.New("invalid PEM block type, expected CERTIFICATE")
+		}
+		return CertFormatPEM, nil
+	}
+	if _, err := x509.ParseCertificate(crtContent); err == nil {
+		return CertFormatDER, nil
+	}
+	if _, err := pkcs7.Parse(crtContent); err == nil {
+		return CertFormatPKCS7, nil
+	}
+	return "", errors.New("unknown certificate format")
+	
 }
 
 func (c *ParsedCert) ToBson() (bson.M, error) {
@@ -120,25 +150,82 @@ func ParseCerts(data []byte) ([]*ParsedCert, error) {
 	if len(data) == 0 {
 		return nil, errors.New("no data provided")
 	}
-	certs := []*ParsedCert{}
-	for {
-		p, rest := pem.Decode(data)
-		if p == nil {
-			return nil, errors.New("error parsing certificate")
-		}
-		x509Cert, err := x509.ParseCertificate(p.Bytes)
+	certFormat, err := GetCertFormat(data)
+	if err != nil {
+		return nil, err
+	}
+	var certs []*x509.Certificate
+	switch certFormat {
+	case CertFormatPEM:
+		certs, err  = parsePEMCerts(data)
 		if err != nil {
 			return nil, err
 		}
-		var cert ParsedCert
-		cert.Cert = x509Cert
-		certs = append(certs, &cert)
-		if len(rest) == 0 {
-			break
+	case CertFormatDER:
+		certs, err = parseDERCerts(data)
+		if err != nil {
+			return nil, err
 		}
+	case CertFormatPKCS7:
+		certs, err = parsePKCS7Certs(data)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, errors.New("unknown certificate format")
+	}
+	parsedCerts := []*ParsedCert{}
+	for _, cert := range certs {
+		parsedCerts = append(parsedCerts, &ParsedCert{
+			Cert: cert,
+		})
+	}
+	return parsedCerts, nil
+}
+
+func parsePEMCerts(data []byte) ([]*x509.Certificate, error) {
+	certs := []*x509.Certificate{}
+	for {
+		p, rest := pem.Decode(data)
+		if p == nil {
+			break // no more PEM blocks
+		}
+		if p.Type != "CERTIFICATE" {
+			return nil, errors.New("invalid PEM block type, expected CERTIFICATE")
+		}
+		x509Certs, err := x509.ParseCertificates(p.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		certs = append(certs, x509Certs...)
 		data = rest
 	}
+	if len(certs) == 0 {
+		return nil, errors.New("no valid PEM certificates found")
+	}
 	return certs, nil
+}
+
+func parseDERCerts(data []byte) ([]*x509.Certificate, error) {
+	cert, err := x509.ParseCertificates(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(cert) == 0 {
+		return nil, errors.New("no valid DER certificates found")
+	}
+	return cert, nil
+}
+
+func parsePKCS7Certs(data []byte) ([]*x509.Certificate, error) {
+	p7, err := pkcs7.Parse(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(p7.Certificates) == 0 {
+		return nil, errors.New("no valid PKCS7 certificates found")
+	}
+	return p7.Certificates, nil
 }
 
 func (c *ParsedCert) OBScopes() ([]models.Scope, error) {

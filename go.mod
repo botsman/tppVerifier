@@ -5,6 +5,7 @@ go 1.23.5
 require github.com/gin-gonic/gin v1.10.0
 
 require (
+	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
