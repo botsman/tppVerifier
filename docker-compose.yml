@@ -2,7 +2,7 @@ services:
   api:
     build: .
     ports:
-      - "3000:3000"
+      - "8080:8080"
     # volumes:
     #   - .:/app
     depends_on:
@@ -10,7 +10,7 @@ services:
     environment:
       - MONGO_URL=mongodb://db:27017
       - MONGO_DB=app
-      - PORT=3000
+      - PORT=8080
       - GIN_MODE=debug
   db:
     image: mongo

@@ -38,7 +38,7 @@ func NewVerifySvc(db db.TppRepository, httpClient vhttp.Client) *VerifySvc {
 }
 
 type VerifyRequest struct {
-	Cert []byte `json:"cert"`
+	Cert string `json:"cert"`
 }
 
 type VerifyResult struct {
@@ -119,7 +119,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 		return
 	}
 	result := VerifyResult{}
-	certs, err := cert.ParseCerts(req.Cert)
+	certs, err := cert.ParseCerts([]byte(req.Cert))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
@@ -245,10 +245,14 @@ func RawCertToPEM(raw []byte) ([]byte, error) {
 	return pemBytes, nil
 }
 
-func (s *VerifySvc) isTrusted(cert *x509.Certificate) (bool, []*x509.Certificate, error) {
+func (s *VerifySvc) isTrusted(cert *x509.Certificate, intermediateChain []*cert.ParsedCert) (bool, []*x509.Certificate, error) {
+	intermediates := s.intermediates.Clone()
+	for _, c := range intermediateChain {
+		intermediates.AddCert(c.Cert)
+	}
 	opts := x509.VerifyOptions{
 		Roots:         s.roots,
-		Intermediates: s.intermediates,
+		Intermediates: intermediates,
 		CurrentTime:   time.Now(),
 	}
 	chains, err := cert.Verify(opts)
@@ -271,14 +275,14 @@ func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerify
 		return result, nil
 	}
 
-	err := s.loadCertChain(c, crt.Cert.IssuingCertificateURL[0])
+	intermediateChain, err := s.loadCertChain(c, crt.Cert.IssuingCertificateURL[0])
 	if err != nil {
 		log.Printf("Error loading certificate chain: %s", err)
 		result.Valid = false
 		result.Reason = "Error loading certificate chain"
 		return result, nil
 	}
-	isTrusted, chain, err := s.isTrusted(crt.Cert)
+	isTrusted, chain, err := s.isTrusted(crt.Cert, intermediateChain)
 	if err != nil {
 		log.Printf("Error checking if certificate is trusted: %s", err)
 		result.Valid = false
@@ -291,6 +295,7 @@ func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerify
 		result.Reason = "Certificate is not trusted"
 		return result, nil
 	}
+	s.updateIntermediates(c, intermediateChain)
 
 	isRevoked, err := s.isRevoked(crt.Cert, chain[len(chain)-1])
 	if err != nil {
@@ -309,7 +314,21 @@ func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerify
 	return result, nil
 }
 
-func (s *VerifySvc) loadCertChain(c *gin.Context, link string) error {
+func (s *VerifySvc) updateIntermediates(c *gin.Context, certs []*cert.ParsedCert) error {
+	for _, crt := range certs {
+		if !s.LinkExists(crt.Cert.IssuingCertificateURL[0]) {
+			s.AddIntermediate(crt.Cert)
+			s.addLink(crt.Cert.IssuingCertificateURL[0])
+			s.db.AddCertificate(c, crt)
+			log.Printf("Added intermediate certificate with SHA256 %s", crt.Sha256())
+		} else {
+			log.Printf("Intermediate certificate with SHA256 %s already exists", crt.Sha256())
+		}
+	}
+	return nil
+}
+
+func (s *VerifySvc) loadCertChain(c *gin.Context, link string) ([]*cert.ParsedCert, error) {
 	// This function gets the certificate chain for the given certificate
 	// First it queries the database for the certificate chain
 	// If the chain is not found, it tries to download it from the OCSP server
@@ -317,6 +336,7 @@ func (s *VerifySvc) loadCertChain(c *gin.Context, link string) error {
 	// For now we will not query the database and always try to download the chain
 	prevParentLink := ""
 	parentLink := link
+	chain := make([]*cert.ParsedCert, 0)
 	for parentLink != "" && parentLink != prevParentLink {
 		if s.LinkExists(parentLink) {
 			log.Printf("Link %s already exists, skipping", parentLink)
@@ -326,35 +346,35 @@ func (s *VerifySvc) loadCertChain(c *gin.Context, link string) error {
 		req, err := http.NewRequest("GET", parentLink, nil)
 		if err != nil {
 			log.Printf("Error creating request to download certificate chain: %s", err)
-			return err
+			return nil, err
 		}
 		resp, err := s.httpClient.Do(req)
 		if err != nil {
 			log.Printf("Error downloading certificate chain: %s", err)
-			return err
+			return nil, err
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			log.Printf("Error downloading certificate chain: %s", resp.Status)
-			return errors.New("error downloading certificate chain")
+			return nil, errors.New("error downloading certificate chain")
 		}
 		certs, err := s.loadCerts(c, resp.Body)
 		if err != nil {
 			log.Printf("Error loading certificates from response body: %s", err)
-			return err
+			return nil, err
 		}
 		if len(certs) == 0 {
 			log.Printf("No certificates found in certificate chain response")
-			return errors.New("no certificates found in certificate chain response")
+			return nil, errors.New("no certificates found in certificate chain response")
 		}
 		for _, crt := range certs {
 			for _, link := range crt.Cert.IssuingCertificateURL {
 				if s.LinkExists(link) {
 					log.Printf("Link %s already exists, skipping", link)
-					return nil
+					return chain, nil
 				}
 				s.addLink(link)
-				s.db.AddIntermediateCertificate(c, crt)
+				chain = append(chain, crt)
 			}
 			// Add the certificate to the intermediate pool
 			s.AddIntermediate(crt.Cert)
@@ -367,7 +387,7 @@ func (s *VerifySvc) loadCertChain(c *gin.Context, link string) error {
 		}
 		parentLink = certs[len(certs)-1].Cert.IssuingCertificateURL[0] // Get the parent link from the last certificate in the chain
 	}
-	return nil
+	return chain, nil
 }
 
 func (s *VerifySvc) loadCerts(c *gin.Context, body io.ReadCloser) ([]*cert.ParsedCert, error) {

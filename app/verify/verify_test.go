@@ -87,9 +87,9 @@ type MockDb struct {
 
 func (m *MockDb) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
 	switch id {
-	case "12345678":
+	case "PSDFIN-FINFSA-1234567-8":
 		return &models.TPP{
-			Id:         "12345678",
+			Id:         "PSDFIN-FINFSA-1234567-8",
 			NameLatin:  "Test TPP",
 			NameNative: "Teszt TPP",
 			Authority:  "Test Authority",
@@ -108,7 +108,7 @@ func (m *MockDb) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
 	}
 }
 
-func (m *MockDb) AddIntermediateCertificate(ctx context.Context, cert *cert.ParsedCert) error {
+func (m *MockDb) AddCertificate(ctx context.Context, cert *cert.ParsedCert) error {
 	return nil
 }
 
@@ -263,8 +263,8 @@ func TestParseCert(t *testing.T) {
 	}
 	cert := certs[0]
 	t.Logf("Parsed certificate: %+v", cert)
-	if cert.CompanyId() != "12345678" {
-		t.Errorf("Expected CompanyId '12345678', got '%s'", cert.CompanyId())
+	if cert.CompanyId() != "PSDFIN-FINFSA-1234567-8" {
+		t.Errorf("Expected CompanyId 'PSDFIN-FINFSA-1234567-8', got '%s'", cert.CompanyId())
 	}
 	scopes, err := cert.OBScopes()
 	if err != nil {
@@ -320,7 +320,7 @@ func TestGetTpp(t *testing.T) {
 		t.Fatal("Expected non-nil VerifySvc")
 	}
 	ctx := gin.Context{}
-	companyId := "12345678"
+	companyId := "PSDFIN-FINFSA-1234567-8"
 	tpp, err := svc.getTpp(&ctx, companyId)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -427,7 +427,7 @@ func TestGetScopes(t *testing.T) {
 		t.Fatal("Expected non-nil VerifySvc")
 	}
 	ctx := gin.Context{}
-	companyId := "12345678"
+	companyId := "PSDFIN-FINFSA-1234567-8"
 	tpp, err := svc.getTpp(&ctx, companyId)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -490,7 +490,7 @@ func TestVerify_Success(t *testing.T) {
 	}
 	svc.AddRoot(caCert)
 	// Set the certificate content in the request
-	verifyRequest.Cert = []byte(certContent)
+	verifyRequest.Cert = string(certContent)
 	body, err := json.Marshal(verifyRequest)
 	if err != nil {
 		t.Fatalf("Couldn't marshal request: %v\n", err)
@@ -535,7 +535,7 @@ func TestVerify_Failure(t *testing.T) {
 		t.Fatal("Expected non-nil VerifySvc")
 	}
 	var verifyRequest VerifyRequest
-	verifyRequest.Cert = []byte(certContent)
+	verifyRequest.Cert = string(certContent)
 	body, err := json.Marshal(verifyRequest)
 	if err != nil {
 		t.Fatalf("Couldn't marshal request: %v\n", err)
