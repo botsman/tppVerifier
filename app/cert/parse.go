@@ -143,7 +143,12 @@ func (c *ParsedCert) CompanyId() string {
 	if c.Cert == nil {
 		return ""
 	}
-	return c.Cert.Subject.SerialNumber
+	for _, name := range c.Cert.Subject.Names {
+		if name.Type.Equal(asn1.ObjectIdentifier{2, 5, 4, 97}) {
+			return name.Value.(string)
+		}
+	}
+	return ""
 }
 
 func ParseCerts(data []byte) ([]*ParsedCert, error) {

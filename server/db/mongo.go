@@ -88,7 +88,7 @@ func (r *TppMongoRepository) GetRootCertificates(ctx context.Context) ([]string,
 	return roots, nil
 }
 
-func (r *TppMongoRepository) AddIntermediateCertificate(ctx context.Context, cert *cert.ParsedCert) error {
+func (r *TppMongoRepository) AddCertificate(ctx context.Context, cert *cert.ParsedCert) error {
 	if cert == nil {
 		return errors.New("certificate cannot be nil")
 	}

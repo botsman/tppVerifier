@@ -23,7 +23,7 @@ func main() {
 		}
 	}()
 
-	httpClient := &http.Client{} // Assuming you want to use a default HTTP client
+	httpClient := &http.Client{}
 	tppRepo := db.NewTppMongoRepository(client.Database)
 	vs := verify.NewVerifySvc(tppRepo, httpClient)
 	roots, err := tppRepo.GetRootCertificates(ctx)
