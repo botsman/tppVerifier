@@ -3,6 +3,8 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 	"unicode"
 )
@@ -36,7 +38,9 @@ type TPP struct {
 	NameLatin    string               `bson:"name_latin"`
 	NameNative   string               `bson:"name_native"`
 	Id           string               `bson:"id"`
+	OBID         string               `bson:"ob_id"`
 	Authority    string               `bson:"authority"`
+	Country      string               `bson:"country"`
 	Services     map[string][]Service `bson:"services"`
 	AuthorizedAt time.Time            `bson:"authorized_at"`
 	WithdrawnAt  *time.Time           `bson:"withdrawn_at"`
@@ -56,12 +60,39 @@ func (t *TPP) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	t.Id = id
-	t.Authority = raw["CA_OwnerID"].(string) // TODO: remove country prefix
 	entityType, ok := raw["EntityType"].(string)
 	if !ok {
 		return nil
 	}
 	t.Type = entityType
+	if !slices.Contains([]string{"PSD_AISP", "PSD_PI", "PSD_EMI"}, t.Type) {
+		return nil
+	}
+	countries, err := findProperty(raw["Properties"], "ENT_COU_RES")
+	if err != nil {
+		return err
+	}
+	if len(countries) != 1 {
+		return fmt.Errorf("country not found in TPP data")
+	}
+	t.Country = countries[0]
+	authority := parseAuthority(raw["CA_OwnerID"].(string), t.Country)
+	if authority == "" {
+		return fmt.Errorf("authority not found in TPP data for country %s", t.Country)
+	}
+	t.Authority = authority
+	entityNatRefCodes, err := findProperty(raw["Properties"], "ENT_NAT_REF_COD")
+	if err != nil {
+		return fmt.Errorf("error finding ENT_NAT_REF_COD: %s\n", err)
+	}
+	if len(entityNatRefCodes) != 1 {
+		return fmt.Errorf("entity national reference code not found in TPP data for country %s", t.Country)
+	}
+	OBID, err := parseOBID(entityNatRefCodes[0], t.Country, authority)
+	if err != nil {
+		return err
+	}
+	t.OBID = OBID
 	properties, ok := raw["Properties"].([]interface{})
 	if !ok {
 		return nil
@@ -130,7 +161,6 @@ func (t *TPP) UnmarshalJSON(data []byte) error {
 				}
 			}
 		}
-
 	}
 	t.Services = make(map[string][]Service)
 	services, ok := raw["Services"].([]interface{})
@@ -160,6 +190,65 @@ func (t *TPP) UnmarshalJSON(data []byte) error {
 	}
 	t.Registry = "EBA"
 	return nil
+}
+
+func findProperty(properties interface{}, key string) ([]string, error) {
+	if props, ok := properties.([]interface{}); ok {
+		for _, prop := range props {
+			if propMap, ok := prop.(map[string]interface{}); ok {
+				if value, ok := propMap[key].(string); ok {
+					return []string{value}, nil
+				} else if values, ok := propMap[key].([]interface{}); ok {
+					strValues := make([]string, len(values))
+					for i, v := range values {
+						if str, ok := v.(string); ok {
+							strValues[i] = str
+						} else {
+							return nil, fmt.Errorf("expected string value for %s", key)
+						}
+					}
+					return strValues, nil
+				}
+			}
+		}
+		return nil, fmt.Errorf("property %s not found", key)
+	}
+	return nil, fmt.Errorf("properties is not a valid format")
+}
+
+func parseOBID(entityNatRefCode string, country string, authority string) (string, error) {
+	// TPP Open banking ID is expected to be in the format: PSD{country}-{authority}-{id}
+	// Eg. PSDFI-FINFSA-0111027-9
+	// Id may or may not contain a dash at the end. For simplicity it will be removed
+	natRefCode := strings.ReplaceAll(entityNatRefCode, "-", "")
+	return fmt.Sprintf("PSD%s-%s-%s", country, authority, natRefCode), nil
+}
+
+func parseAuthority(authority string, country string) string {
+	// authority is expected to be in the format: {country}-{authority}
+	// Eg. "FI_FIN-FSA"
+	// The dash is removed if it exists
+	parts := strings.Split(authority, "_")
+	if len(parts) != 2 {
+		return ""
+	}
+	if parts[0] != country {
+		return ""
+	}
+	res := parts[1]
+	res = strings.ReplaceAll(res, "-", "")
+	return res
+}
+
+func parseCountry(properties []interface{}) string {
+	for _, prop := range properties {
+		if propMap, ok := prop.(map[string]interface{}); ok {
+			if country, ok := propMap["ENT_COU_RES"].(string); ok {
+				return country
+			}
+		}
+	}
+	return ""
 }
 
 type Register string

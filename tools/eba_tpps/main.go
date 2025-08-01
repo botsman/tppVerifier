@@ -29,6 +29,7 @@ const (
 )
 
 const RegisterJsonName = "eba_register.json"
+
 var now = time.Now()
 
 // func serviceFromString(str string) (Service, error) {
@@ -214,7 +215,6 @@ func saveTPPs(out <-chan models.TPP) error {
 	}
 	return nil
 }
-
 
 func main() {
 	// Download and parse the registry
