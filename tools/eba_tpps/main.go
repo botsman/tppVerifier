@@ -430,7 +430,7 @@ func main() {
 	// 4. Parse the file
 	// 5. Save the parsed data to the DB
 
-	// getRegistry()
+	getRegistry()
 	tppChan, err := parseRegistry()
 	if err != nil {
 		log.Fatal(err)
