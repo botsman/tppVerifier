@@ -96,8 +96,8 @@ func (m *MockDb) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
 			Services: map[string][]models.Service{
 				"FI": {models.AISP, models.PISP},
 			},
-			AuthorizedAt: time.Now(),
-			WithdrawnAt:  &time.Time{},
+			AuthorizedAt: getRef(time.Now()),
+			WithdrawnAt:  getRef(time.Time{}),
 			Type:         "TPP",
 			CreatedAt:    time.Now(),
 			UpdatedAt:    time.Now(),
@@ -106,6 +106,10 @@ func (m *MockDb) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
 	default:
 		return nil, nil // Simulate no TPP found
 	}
+}
+
+func getRef[T any](val T) *T {
+	return &val
 }
 
 func (m *MockDb) AddCertificate(ctx context.Context, cert *cert.ParsedCert) error {

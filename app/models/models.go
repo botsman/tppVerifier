@@ -27,7 +27,7 @@ type TPP struct {
 	Authority    string               `bson:"authority"`
 	Country      string               `bson:"country"`
 	Services     map[string][]Service `bson:"services"`
-	AuthorizedAt time.Time            `bson:"authorized_at"`
+	AuthorizedAt *time.Time           `bson:"authorized_at"`
 	WithdrawnAt  *time.Time           `bson:"withdrawn_at"`
 	Type         string               `bson:"type"`
 	CreatedAt    time.Time            `bson:"created_at"`
