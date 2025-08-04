@@ -25,7 +25,8 @@ type RawTPP struct {
 	CA_OwnerID            string
 	Code                  string
 	Type                  string
-	AuthorizedAt          time.Time
+	AuthorizedAt          *time.Time
+	WithdrawnAt           *time.Time
 	NationalReferenceCode string
 	Names                 []string
 	Country               string
@@ -74,6 +75,7 @@ func (r *RawTPP) toTPP() models.TPP {
 		Country:      r.Country,
 		Services:     r.Services,
 		AuthorizedAt: r.AuthorizedAt,
+		WithdrawnAt:  r.WithdrawnAt,
 		Type:         r.Type,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -110,14 +112,19 @@ func (r *RawTPP) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	r.Type = entType
-	authorizedAt, err := r.findProperty(raw["Properties"], "ENT_AUT")
+	authorizedAtVal, err := r.findProperty(raw["Properties"], "ENT_AUT")
 	if err != nil {
 		// log.Println("AuthorizedAt is required, skipping this TPP")
 		return nil
 	}
-	if len(authorizedAt) > 0 {
-		// pick the last one as it is the latest date
-		r.AuthorizedAt, _ = time.Parse(time.DateOnly, authorizedAt[len(authorizedAt)-1])
+	if len(authorizedAtVal) > 0 {
+		authorizedAt, withdrawnAt, err := parseAuthorizedAt(authorizedAtVal)
+		if err != nil {
+			// log.Printf("Error parsing authorized date: %v, skipping this TPP\n", err)
+			return nil
+		}
+		r.AuthorizedAt = authorizedAt
+		r.WithdrawnAt = withdrawnAt
 	}
 	nationalReferenceCode, err := r.findProperty(raw["Properties"], "ENT_NAT_REF_COD")
 	if err != nil {
@@ -140,6 +147,42 @@ func (r *RawTPP) UnmarshalJSON(data []byte) error {
 	}
 	r.Services = services
 	return nil
+}
+
+func parseAuthorizedAt(vals []string) (*time.Time, *time.Time, error) {
+	switch len(vals) {
+	case 0:
+		return nil, nil, errors.New("no authorized date found")
+	case 1:
+		authorizedAt, err := time.Parse(time.DateOnly, vals[0])
+		if err != nil {
+			return nil, nil, fmt.Errorf("error parsing authorized date: %w", err)
+		}
+		return &authorizedAt, nil, nil
+	default:
+		// Even is authorizedAt, odd is withdrawnAt
+		// Pick the last one as it is the latest date
+		isEven := len(vals)%2 == 0
+		var authorizedAtIdx int
+		var withdrawnAtIdx int
+		if isEven {
+			authorizedAtIdx = len(vals) - 2
+			withdrawnAtIdx = len(vals) - 1
+		} else {
+			authorizedAtIdx = len(vals) - 1
+			withdrawnAtIdx = len(vals) - 2
+		}
+		var err error
+		authorizedAt, err := time.Parse(time.DateOnly, vals[authorizedAtIdx])
+		if err != nil {
+			return nil, nil, fmt.Errorf("error parsing authorized date: %w", err)
+		}
+		withdrawnAt, err := time.Parse(time.DateOnly, vals[withdrawnAtIdx])
+		if err != nil {
+			return nil, nil, fmt.Errorf("error parsing revoked date: %w", err)
+		}
+		return &authorizedAt, &withdrawnAt, nil
+	}
 }
 
 func serviceFromString(str string) (models.Service, error) {
@@ -243,8 +286,6 @@ func (r *RawTPP) findProperty(properties any, key string) ([]string, error) {
 }
 
 const RegisterJsonName = "eba_register.json"
-
-var now = time.Now()
 
 func getRegistry() error {
 	reader, err := downloadRegistry()
@@ -352,7 +393,7 @@ func parseRegistry() (<-chan models.TPP, error) {
 					// log.Printf("Skipping TPP with missing Type: %+v\n", rawTpp)
 					continue
 				}
-				if rawTpp.AuthorizedAt.IsZero() {
+				if rawTpp.AuthorizedAt == nil || rawTpp.AuthorizedAt.IsZero() {
 					// log.Printf("Skipping TPP with missing AuthorizedAt: %+v\n", rawTpp)
 					continue
 				}
