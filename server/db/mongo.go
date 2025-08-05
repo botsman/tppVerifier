@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/botsman/tppVerifier/app/models"
 	"github.com/botsman/tppVerifier/app/cert"
+	"github.com/botsman/tppVerifier/app/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -56,7 +56,7 @@ type TppMongoRepository struct {
 
 func (r *TppMongoRepository) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
 	tpp := &models.TPP{}
-	err := r.db.Collection("tpp").FindOne(ctx, bson.M{"id": id}).Decode(&tpp)
+	err := r.db.Collection("tpps").FindOne(ctx, bson.M{"ob_id": id}).Decode(&tpp)
 	if err != nil {
 		return nil, err
 	}

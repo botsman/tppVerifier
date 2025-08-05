@@ -1,8 +1,10 @@
 package verify
 
 import (
+	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/botsman/tppVerifier/app/cert"
@@ -163,7 +165,20 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+func normalizeTppId(id string) string {
+	// TPPs are stored in the format "PSD{country}-{authority}-{id}". Eg. PSDFI-FINFSA-123456789
+	// However, some countries put dash into the id, so we need to normalize it to remove the dash
+
+	parts := strings.Split(id, "-")
+	if len(parts) < 3 {
+		return id // If the format is not as expected, return the original ID
+	}
+	// Join the parts back together, removing the dash from the last part
+	return fmt.Sprintf("%s-%s-%s", parts[0], parts[1], strings.Join(parts[2:], ""))
+}
+
 func (s *VerifySvc) getTpp(c *gin.Context, id string) (*models.TPP, error) {
+	id = normalizeTppId(id)
 	tpp, err := s.db.GetTpp(c, id)
 	if err != nil {
 		return nil, err
