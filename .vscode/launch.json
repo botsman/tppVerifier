@@ -19,7 +19,7 @@
             "program": "server/run.go",
             "env": {
                 "MONGO_URL": "mongodb://localhost:27017",
-                "MONGO_DB": "app",
+                "MONGO_DB": "tppVerifier",
                 "PORT": "8080",
             }
         },

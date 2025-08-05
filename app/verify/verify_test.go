@@ -87,9 +87,9 @@ type MockDb struct {
 
 func (m *MockDb) GetTpp(ctx context.Context, id string) (*models.TPP, error) {
 	switch id {
-	case "PSDFIN-FINFSA-1234567-8":
+	case "PSDFIN-FINFSA-12345678":
 		return &models.TPP{
-			Id:         "PSDFIN-FINFSA-1234567-8",
+			Id:         "PSDFIN-FINFSA-12345678",
 			NameLatin:  "Test TPP",
 			NameNative: "Teszt TPP",
 			Authority:  "Test Authority",
@@ -324,7 +324,7 @@ func TestGetTpp(t *testing.T) {
 		t.Fatal("Expected non-nil VerifySvc")
 	}
 	ctx := gin.Context{}
-	companyId := "PSDFIN-FINFSA-1234567-8"
+	companyId := "PSDFIN-FINFSA-12345678"
 	tpp, err := svc.getTpp(&ctx, companyId)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -431,7 +431,7 @@ func TestGetScopes(t *testing.T) {
 		t.Fatal("Expected non-nil VerifySvc")
 	}
 	ctx := gin.Context{}
-	companyId := "PSDFIN-FINFSA-1234567-8"
+	companyId := "PSDFIN-FINFSA-12345678"
 	tpp, err := svc.getTpp(&ctx, companyId)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
