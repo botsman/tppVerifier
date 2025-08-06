@@ -15,7 +15,6 @@ import (
 	"bytes"
 	"crypto/x509"
 	"encoding/asn1"
-	"encoding/pem"
 	"errors"
 	"io"
 	"log"
@@ -249,25 +248,21 @@ func (s *VerifySvc) isRevoked(c, issuer *x509.Certificate) (bool, error) {
 	return ocspResponse.Status == ocsp.Revoked, nil
 }
 
-func RawCertToPEM(raw []byte) ([]byte, error) {
-	pemBytes := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: raw,
-	})
-	if pemBytes == nil {
-		return nil, errors.New("error encoding certificate to PEM format")
-	}
-	return pemBytes, nil
-}
-
 func (s *VerifySvc) isTrusted(cert *x509.Certificate, intermediateChain []*cert.ParsedCert) (bool, []*x509.Certificate, error) {
-	intermediates := s.intermediates.Clone()
+	var intermediates *x509.CertPool
+	if s.intermediates != nil {
+		intermediates = s.intermediates.Clone()
+	} else {
+		intermediates = x509.NewCertPool()
+	}
 	for _, c := range intermediateChain {
 		intermediates.AddCert(c.Cert)
 	}
 	opts := x509.VerifyOptions{
 		Roots:         s.roots,
 		Intermediates: intermediates,
+		// TODO: add custom key usages such as 1.3.6.1.4.1.311.10.3.12, 1.2.840.113583.1.1.5
+		KeyUsages:    []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageAny},
 		CurrentTime:   time.Now(),
 	}
 	chains, err := cert.Verify(opts)
@@ -331,7 +326,7 @@ func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerify
 
 func (s *VerifySvc) updateIntermediates(c *gin.Context, certs []*cert.ParsedCert) error {
 	for _, crt := range certs {
-		if !s.LinkExists(crt.Cert.IssuingCertificateURL[0]) {
+		if len(crt.Cert.IssuingCertificateURL) > 0 && !s.LinkExists(crt.Cert.IssuingCertificateURL[0]) {
 			s.AddIntermediate(crt.Cert)
 			s.addLink(crt.Cert.IssuingCertificateURL[0])
 			s.db.AddCertificate(c, crt)
@@ -389,10 +384,9 @@ func (s *VerifySvc) loadCertChain(c *gin.Context, link string) ([]*cert.ParsedCe
 					return chain, nil
 				}
 				s.addLink(link)
-				chain = append(chain, crt)
 			}
 			// Add the certificate to the intermediate pool
-			s.AddIntermediate(crt.Cert)
+			chain = append(chain, crt)
 			log.Printf("Added certificate with SHA256 %s to the intermediate pool", crt.Sha256())
 		}
 		parentCert := certs[len(certs)-1].Cert // Get the last certificate in the chain

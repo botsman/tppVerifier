@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/botsman/tppVerifier/app/models"
 	"github.com/fullsailor/pkcs7"
@@ -39,20 +41,21 @@ type NCA struct {
 }
 
 type ParsedCert struct {
-	Cert      *x509.Certificate `json:"-"`
-	Registers []models.Register
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	IsActive  bool
-	Position  models.Position
+	Cert      *x509.Certificate `json:"-"` // not serialized
+	Registers []models.Register `bson:"registers" json:"registers"`
+	CreatedAt time.Time         `bson:"created_at" json:"created_at"`
+	UpdatedAt time.Time         `bson:"updated_at" json:"updated_at"`
+	IsActive  bool              `bson:"is_active" json:"is_active"`
+	Position  models.Position   `bson:"position" json:"position"`
 }
 
 type certFormat string
 
 const (
-	CertFormatPEM   certFormat = "PEM"
-	CertFormatDER   certFormat = "DER"
-	CertFormatPKCS7 certFormat = "PKCS7"
+	CertFormatPEM    certFormat = "PEM"
+	CertFormatRawPEM certFormat = "RawPEM" // PEM without headers
+	CertFormatDER    certFormat = "DER"
+	CertFormatPKCS7  certFormat = "PKCS7"
 )
 
 func GetCertFormat(crtContent []byte) (certFormat, error) {
@@ -66,6 +69,9 @@ func GetCertFormat(crtContent []byte) (certFormat, error) {
 		}
 		return CertFormatPEM, nil
 	}
+	if _, err := base64.StdEncoding.DecodeString(string(crtContent)); err == nil {
+		return CertFormatRawPEM, nil
+	}
 	if _, err := x509.ParseCertificate(crtContent); err == nil {
 		return CertFormatDER, nil
 	}
@@ -73,7 +79,7 @@ func GetCertFormat(crtContent []byte) (certFormat, error) {
 		return CertFormatPKCS7, nil
 	}
 	return "", errors.New("unknown certificate format")
-	
+
 }
 
 func (c *ParsedCert) ToBson() (bson.M, error) {
@@ -93,6 +99,7 @@ func (c *ParsedCert) ToBson() (bson.M, error) {
 		"not_after":     c.Cert.NotAfter,
 		"updated_at":    c.UpdatedAt,
 		"position":      c.Position,
+		"is_active":     c.IsActive,
 	}
 	nca, err := c.NCA()
 	if err != nil {
@@ -123,14 +130,27 @@ func (c *ParsedCert) UnmarshalBSON(data []byte) error {
 	if err := bson.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	c.Registers = raw["registers"].([]models.Register)
-	c.CreatedAt = raw["created_at"].(time.Time)
-	c.UpdatedAt = raw["updated_at"].(time.Time)
-	c.IsActive = raw["is_active"].(bool)
-	c.Position = raw["position"].(models.Position)
+	if arr, ok := raw["registers"].(primitive.A); ok {
+		c.Registers = make([]models.Register, len(arr))
+		for i, v := range arr {
+			// If Register is a string type, convert directly
+			if s, ok := v.(string); ok {
+				c.Registers[i] = models.Register(s)
+			} else {
+				return errors.New("invalid register type in BSON")
+			}
+		}
+	}
+	c.CreatedAt = raw["created_at"].(primitive.DateTime).Time()
+	c.UpdatedAt = raw["updated_at"].(primitive.DateTime).Time()
+	// c.IsActive = raw["is_active"].(bool)
+	if posStr, ok := raw["position"].(string); ok {
+		c.Position = models.Position(posStr)
+	} else {
+		return errors.New("invalid position type in BSON")
+	}
 
-	pemData := raw["pem"].([]byte)
-	// ignore rest as we expect only PEM data in the DB
+	pemData := raw["pem"].(primitive.Binary).Data
 	p, _ := pem.Decode(pemData)
 	if p == nil {
 		return errors.New("error parsing certificate")
@@ -162,7 +182,12 @@ func ParseCerts(data []byte) ([]*ParsedCert, error) {
 	var certs []*x509.Certificate
 	switch certFormat {
 	case CertFormatPEM:
-		certs, err  = parsePEMCerts(data)
+		certs, err = parsePEMCerts(data)
+		if err != nil {
+			return nil, err
+		}
+	case CertFormatRawPEM:
+		certs, err = parseRawPEMCerts(data) // treat raw PEM as PEM without headers
 		if err != nil {
 			return nil, err
 		}
@@ -207,6 +232,21 @@ func parsePEMCerts(data []byte) ([]*x509.Certificate, error) {
 	}
 	if len(certs) == 0 {
 		return nil, errors.New("no valid PEM certificates found")
+	}
+	return certs, nil
+}
+
+func parseRawPEMCerts(data []byte) ([]*x509.Certificate, error) {
+	derBytes, err := base64.StdEncoding.DecodeString(string(data))
+	if err != nil {
+		return nil, err
+	}
+	certs, err := x509.ParseCertificates(derBytes)
+	if err != nil {
+		return nil, err
+	}
+	if len(certs) == 0 {
+		return nil, errors.New("no valid raw PEM certificates found")
 	}
 	return certs, nil
 }

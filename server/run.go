@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/x509"
 	"log"
 	"net/http"
 
 	"github.com/botsman/tppVerifier/app"
 	"github.com/botsman/tppVerifier/app/verify"
+	"github.com/botsman/tppVerifier/app/cert"
 	"github.com/botsman/tppVerifier/server/db"
 )
 
@@ -35,17 +35,18 @@ func main() {
 			log.Println("Skipping empty root certificate")
 			continue
 		}
-		rootCert, err := verify.RawCertToPEM([]byte(root))
-		if err != nil {
-			log.Printf("Error converting root certificate to PEM format: %s", err)
-			continue
-		}
-		cert, err := x509.ParseCertificate(rootCert)
+		rootCerts, err := cert.ParseCerts([]byte(root))
 		if err != nil {
 			log.Printf("Error parsing root certificate: %s", err)
 			continue
 		}
-		vs.AddRoot(cert)
+		for _, rootCert := range rootCerts {
+			if rootCert.Cert == nil {
+				log.Println("Skipping nil root certificate")
+				continue
+			}
+			vs.AddRoot(rootCert.Cert)
+		}
 	}
 	r := app.SetupRouter(vs)
 	r.Run()

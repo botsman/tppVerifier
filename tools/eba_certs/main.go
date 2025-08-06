@@ -249,7 +249,6 @@ func main() {
 				"is_active": false,
 			},
 		},
-		opts,
 	)
 	if err != nil {
 		fmt.Println("Error updating inactive certificates:", err)
