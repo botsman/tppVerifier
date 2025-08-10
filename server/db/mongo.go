@@ -65,7 +65,7 @@ func (r *TppMongoRepository) GetTpp(ctx context.Context, id string) (*models.TPP
 
 func (r *TppMongoRepository) GetRootCertificates(ctx context.Context) ([]string, error) {
 	filter := bson.M{
-		// "is_active": true,
+		"is_active": true,
 		"position":  models.Root,
 	}
 	cursor, err := r.db.Collection("certs").Find(ctx, filter)

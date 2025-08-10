@@ -45,7 +45,7 @@ func main() {
 				log.Println("Skipping nil root certificate")
 				continue
 			}
-			vs.AddRoot(rootCert.Cert)
+			vs.AddRoot(rootCert)
 		}
 	}
 	r := app.SetupRouter(vs)
