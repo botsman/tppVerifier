@@ -143,7 +143,7 @@ func (c *ParsedCert) UnmarshalBSON(data []byte) error {
 	}
 	c.CreatedAt = raw["created_at"].(primitive.DateTime).Time()
 	c.UpdatedAt = raw["updated_at"].(primitive.DateTime).Time()
-	// c.IsActive = raw["is_active"].(bool)
+	c.IsActive = raw["is_active"].(bool)
 	if posStr, ok := raw["position"].(string); ok {
 		c.Position = models.Position(posStr)
 	} else {

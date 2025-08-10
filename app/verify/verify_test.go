@@ -393,12 +393,12 @@ func TestVerifyCert(t *testing.T) {
 			t.Fatalf("Failed to decode CA certificate PEM from %s", caCertPath)
 			return
 		}
-		caCert, err := x509.ParseCertificate(caPem.Bytes)
+		caCerts, err := cert.ParseCerts(caPem.Bytes)
 		if err != nil {
 			t.Fatalf("Failed to parse CA certificate from %s: %v", caCertPath, err)
 			return
 		}
-		svc.AddRoot(caCert)
+		svc.AddRoot(caCerts[0])
 		certs, err := cert.ParseCerts([]byte(certContent))
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -487,12 +487,12 @@ func TestVerify_Success(t *testing.T) {
 		t.Fatal("Failed to decode CA certificate PEM")
 		return
 	}
-	caCert, err := x509.ParseCertificate(caPem.Bytes)
+	caCerts, err := cert.ParseCerts(caPem.Bytes)
 	if err != nil {
 		t.Fatalf("Failed to parse CA certificate from %s: %v", "chains/1/ca.pem", err)
 		return
 	}
-	svc.AddRoot(caCert)
+	svc.AddRoot(caCerts[0])
 	// Set the certificate content in the request
 	verifyRequest.Cert = string(certContent)
 	body, err := json.Marshal(verifyRequest)

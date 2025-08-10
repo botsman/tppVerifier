@@ -28,7 +28,7 @@ type VerifySvc struct {
 	httpClient    vhttp.Client
 	roots         *x509.CertPool
 	intermediates *x509.CertPool
-	haveLinks     map[string]bool // used to avoid duplicate links
+	hashes        map[string]any // used to avoid duplicate links
 }
 
 func NewVerifySvc(db db.TppRepository, httpClient vhttp.Client) *VerifySvc {
@@ -50,54 +50,42 @@ type VerifyResult struct {
 	Reason      string              `json:"reason,omitempty"`
 }
 
-func (s *VerifySvc) AddRoot(cert *x509.Certificate) {
+func (s *VerifySvc) AddRoot(cert *cert.ParsedCert) {
 	if s.roots == nil {
 		s.roots = x509.NewCertPool()
 	}
-	s.roots.AddCert(cert)
-	for _, link := range cert.IssuingCertificateURL {
-		if link == "" {
-			continue
-		}
-		if !s.addLink(link) {
-			log.Printf("Link %s already exists, skipping", link)
-			continue
-		}
+	s.roots.AddCert(cert.Cert)
+	if !s.addHash(cert.Sha256()) {
+		log.Printf("Link %s already exists, skipping", cert.Sha256())
 	}
 }
 
-func (s *VerifySvc) AddIntermediate(cert *x509.Certificate) {
+func (s *VerifySvc) AddIntermediate(cert *cert.ParsedCert) {
 	if s.intermediates == nil {
 		s.intermediates = x509.NewCertPool()
 	}
-	s.intermediates.AddCert(cert)
-	for _, link := range cert.IssuingCertificateURL {
-		if link == "" {
-			continue
-		}
-		if !s.addLink(link) {
-			log.Printf("Link %s already exists, skipping", link)
-			continue
-		}
+	s.intermediates.AddCert(cert.Cert)
+	if !s.addHash(cert.Sha256()) {
+		log.Printf("Link %s already exists, skipping", cert.Sha256())
 	}
 }
 
-func (s *VerifySvc) addLink(link string) bool {
-	if s.haveLinks == nil {
-		s.haveLinks = make(map[string]bool)
+func (s *VerifySvc) addHash(link string) bool {
+	if s.hashes == nil {
+		s.hashes = make(map[string]any)
 	}
-	if _, exists := s.haveLinks[link]; exists {
+	if _, exists := s.hashes[link]; exists {
 		return false
 	}
-	s.haveLinks[link] = true
+	s.hashes[link] = struct{}{}
 	return true
 }
 
-func (s *VerifySvc) LinkExists(link string) bool {
-	if s.haveLinks == nil {
+func (s *VerifySvc) HashExists(link string) bool {
+	if s.hashes == nil {
 		return false
 	}
-	_, exists := s.haveLinks[link]
+	_, exists := s.hashes[link]
 	return exists
 }
 
@@ -262,8 +250,8 @@ func (s *VerifySvc) isTrusted(cert *x509.Certificate, intermediateChain []*cert.
 		Roots:         s.roots,
 		Intermediates: intermediates,
 		// TODO: add custom key usages such as 1.3.6.1.4.1.311.10.3.12, 1.2.840.113583.1.1.5
-		KeyUsages:    []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageAny},
-		CurrentTime:   time.Now(),
+		KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageAny},
+		CurrentTime: time.Now(),
 	}
 	chains, err := cert.Verify(opts)
 	if err != nil {
@@ -326,9 +314,9 @@ func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerify
 
 func (s *VerifySvc) updateIntermediates(c *gin.Context, certs []*cert.ParsedCert) error {
 	for _, crt := range certs {
-		if len(crt.Cert.IssuingCertificateURL) > 0 && !s.LinkExists(crt.Cert.IssuingCertificateURL[0]) {
-			s.AddIntermediate(crt.Cert)
-			s.addLink(crt.Cert.IssuingCertificateURL[0])
+		if !s.HashExists(crt.Sha256()) {
+			s.AddIntermediate(crt)
+			s.addHash(crt.Sha256())
 			s.db.AddCertificate(c, crt)
 			log.Printf("Added intermediate certificate with SHA256 %s", crt.Sha256())
 		} else {
@@ -348,10 +336,6 @@ func (s *VerifySvc) loadCertChain(c *gin.Context, link string) ([]*cert.ParsedCe
 	parentLink := link
 	chain := make([]*cert.ParsedCert, 0)
 	for parentLink != "" && parentLink != prevParentLink {
-		if s.LinkExists(parentLink) {
-			log.Printf("Link %s already exists, skipping", parentLink)
-			break
-		}
 		prevParentLink = parentLink
 		req, err := http.NewRequest("GET", parentLink, nil)
 		if err != nil {
@@ -378,12 +362,9 @@ func (s *VerifySvc) loadCertChain(c *gin.Context, link string) ([]*cert.ParsedCe
 			return nil, errors.New("no certificates found in certificate chain response")
 		}
 		for _, crt := range certs {
-			for _, link := range crt.Cert.IssuingCertificateURL {
-				if s.LinkExists(link) {
-					log.Printf("Link %s already exists, skipping", link)
-					return chain, nil
-				}
-				s.addLink(link)
+			if s.HashExists(crt.Sha256()) {
+				log.Printf("Link %s already exists, skipping", crt.Sha256())
+				return chain, nil
 			}
 			// Add the certificate to the intermediate pool
 			chain = append(chain, crt)
