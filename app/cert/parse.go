@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"log"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -375,4 +376,18 @@ func (c *ParsedCert) NCA() (*NCA, error) {
 		}
 	}
 	return nil, nil
+}
+
+func (c *ParsedCert) IsSandbox() bool {
+	// For now the check is pretty dumb as it is not clear how test certificates look like
+	for _, ext := range c.Cert.Extensions {
+		if !ext.Id.Equal(asn1.ObjectIdentifier{2, 5, 29, 32}) {
+			continue
+		}
+		valLower := strings.ToLower(string(ext.Value))
+		if strings.Contains(valLower, "sandbox") || strings.Contains(valLower, "test") {
+			return true
+		}
+	}
+	return false
 }
