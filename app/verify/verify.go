@@ -103,7 +103,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 	var req VerifyRequest
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
+			"error": "Invalid request format.",
 		})
 		return
 	}
@@ -111,7 +111,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 	certs, err := cert.ParseCerts([]byte(req.Cert))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
+			"error": "Invalid certificate format.",
 		})
 		return
 	}
@@ -126,7 +126,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 	tpp, err := s.getTpp(c, cert.CompanyId())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+			"error": "Failed to retrieve TPP information.",
 		})
 		return
 	}
@@ -135,7 +135,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 	certVerifyResult, err := s.verifyCert(c, cert)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+			"error": "Failed to verify certificate.",
 		})
 		return
 	}
@@ -270,6 +270,12 @@ func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerify
 	if crt.Usage() == models.UNKNOWN {
 		result.Valid = false
 		result.Reason = "Unknown certificate usage"
+		return result, nil
+	}
+
+	if crt.IsSandbox() {
+		result.Valid = false
+		result.Reason = "Certificate is from a sandbox environment"
 		return result, nil
 	}
 
