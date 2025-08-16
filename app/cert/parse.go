@@ -8,8 +8,9 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
-	"log"
 	"strings"
+
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -378,15 +379,53 @@ func (c *ParsedCert) NCA() (*NCA, error) {
 	return nil, nil
 }
 
+type PolicyInformation struct {
+	PolicyIdentifier asn1.ObjectIdentifier
+	PolicyQualifiers []PolicyQualifierInfo `asn1:"optional"`
+}
+
+type PolicyQualifierInfo struct {
+	PolicyQualifierId asn1.ObjectIdentifier
+	Qualifier         asn1.RawValue `asn1:"optional"`
+}
+
 func (c *ParsedCert) IsSandbox() bool {
 	// For now the check is pretty dumb as it is not clear how test certificates look like
 	for _, ext := range c.Cert.Extensions {
 		if !ext.Id.Equal(asn1.ObjectIdentifier{2, 5, 29, 32}) {
 			continue
 		}
-		valLower := strings.ToLower(string(ext.Value))
-		if strings.Contains(valLower, "sandbox") || strings.Contains(valLower, "test") {
-			return true
+		// valLower := strings.ToLower(string(ext.Value))
+		// if strings.Contains(valLower, "sandbox") || strings.Contains(valLower, "test") {
+		// 	return true
+		// }
+		var policies []PolicyInformation
+		_, err := asn1.Unmarshal(ext.Value, &policies)
+		if err != nil {
+			log.Printf("Error unmarshalling policy information: %v", err)
+			continue
+		}
+		for _, policy := range policies {
+			if !policy.PolicyIdentifier.Equal(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 21528, 2, 1, 1, 100}) {
+				continue
+			}
+			for _, qualifier := range policy.PolicyQualifiers {
+				if !qualifier.PolicyQualifierId.Equal(asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 2}) {
+					continue
+				}
+				var userNotices []string
+				_, err := asn1.Unmarshal(qualifier.Qualifier.FullBytes, &userNotices)
+				if err != nil {
+					log.Printf("Error unmarshalling user notice: %v", err)
+					continue
+				}
+				for _, notice := range userNotices {
+					noticeLower := strings.ToLower(notice)
+					if strings.Contains(noticeLower, "sandbox") || strings.Contains(noticeLower, "test") {
+						return true
+					}
+				}
+			}
 		}
 	}
 	return false

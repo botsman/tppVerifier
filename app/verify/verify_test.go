@@ -414,7 +414,7 @@ func TestVerifyCert(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
-		if verifyRes.Valid {
+		if !verifyRes.Valid {
 			t.Error("Expected certificate to be verified successfully, but it was not")
 		}
 	}
@@ -520,7 +520,7 @@ func TestVerify_Success(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &verifyResponse); err != nil {
 		t.Fatalf("Couldn't unmarshal response: %v\n", err)
 	}
-	if verifyResponse.Valid {
+	if !verifyResponse.Valid {
 		t.Errorf("Expected valid certificate, got invalid: %s\n", verifyResponse.Reason)
 	}
 }
