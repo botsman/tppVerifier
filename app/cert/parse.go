@@ -395,10 +395,6 @@ func (c *ParsedCert) IsSandbox() bool {
 		if !ext.Id.Equal(asn1.ObjectIdentifier{2, 5, 29, 32}) {
 			continue
 		}
-		// valLower := strings.ToLower(string(ext.Value))
-		// if strings.Contains(valLower, "sandbox") || strings.Contains(valLower, "test") {
-		// 	return true
-		// }
 		var policies []PolicyInformation
 		_, err := asn1.Unmarshal(ext.Value, &policies)
 		if err != nil {
