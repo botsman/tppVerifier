@@ -42,3 +42,20 @@ func TestGetCertFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestIsSandbox(t *testing.T) {
+	certPath := getTestDataPath("sandbox/leaf.pem")
+	certContent, err := os.ReadFile(certPath)
+	if err != nil {
+		t.Fatalf("Couldn't read certificate file: %v\n", err)
+	}
+	parsedCerts, err := ParseCerts(certContent)
+	if err != nil {
+		t.Fatalf("Couldn't parse certificate: %v\n", err)
+	}
+	for _, cert := range parsedCerts {
+		if !cert.IsSandbox() {
+			t.Errorf("Expected certificate to be sandbox, got %v", cert)
+		}
+	}
+}
