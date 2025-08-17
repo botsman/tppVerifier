@@ -135,7 +135,7 @@ func (m *MockHttpClient) SetChainPath(path string) {
 func (m *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 	switch req.URL.String() {
 	case "http://test.company.hu/CA.crt":
-		data, err := os.ReadFile(getTestDataPath("chains/1/ca.pem"))
+		data, err := os.ReadFile(path.Join(m.chainPath, "ca.pem"))
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +144,7 @@ func (m *MockHttpClient) Do(req *http.Request) (*http.Response, error) {
 			Body:       io.NopCloser(bytes.NewReader(data)),
 		}, nil
 	case "http://yourdomain.com/certs/intermediate.crt":
-		data, err := os.ReadFile(getTestDataPath("chains/1/intermediate.pem"))
+		data, err := os.ReadFile(path.Join(m.chainPath, "intermediate.pem"))
 		if err != nil {
 			return nil, err
 		}
@@ -462,20 +462,20 @@ func TestVerify_Success(t *testing.T) {
 	}
 	httpClient := NewMockHttpClient()
 	chainsPath := getTestDataPath("chains")
-	httpClient.SetChainPath(filepath.Join(chainsPath, "1"))
+	httpClient.SetChainPath(filepath.Join(chainsPath, "production"))
 	svc := NewVerifySvc(db, httpClient)
 	if svc == nil {
 		t.Fatal("Expected non-nil VerifySvc")
 	}
 	var verifyRequest VerifyRequest
-	certContent, err := os.ReadFile(getTestDataPath("chains/1/leaf.pem"))
+	certContent, err := os.ReadFile(getTestDataPath("chains/production/leaf.pem"))
 	if err != nil {
 		t.Fatalf("Couldn't read certificate file: %v\n", err)
 	}
 	if len(certContent) == 0 {
 		t.Fatal("Expected non-empty certificate content")
 	}
-	caCertContent, err := os.ReadFile(getTestDataPath("chains/1/ca.pem"))
+	caCertContent, err := os.ReadFile(getTestDataPath("chains/production/ca.pem"))
 	if err != nil {
 		t.Fatalf("Couldn't read CA certificate file: %v\n", err)
 	}
