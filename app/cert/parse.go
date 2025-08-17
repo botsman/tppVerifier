@@ -398,17 +398,10 @@ func (c *ParsedCert) IsSandbox() bool {
 				if !qualifier.PolicyQualifierId.Equal(asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 2, 2}) {
 					continue
 				}
-				var userNotices []string
-				_, err := asn1.Unmarshal(qualifier.Qualifier.FullBytes, &userNotices)
-				if err != nil {
-					log.Printf("Error unmarshalling user notice: %v", err)
-					continue
-				}
-				for _, notice := range userNotices {
-					noticeLower := strings.ToLower(notice)
-					if strings.Contains(noticeLower, "sandbox") || strings.Contains(noticeLower, "test") {
-						return true
-					}
+				// Probably should do proper unmarshalling here
+				qualifierText := strings.ToLower(string(qualifier.Qualifier.FullBytes))
+				if strings.Contains(qualifierText, "sandbox") || strings.Contains(qualifierText, "test") {
+					return true
 				}
 			}
 		}
