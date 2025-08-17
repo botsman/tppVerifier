@@ -42,12 +42,25 @@ type VerifyRequest struct {
 	Cert string `json:"cert"`
 }
 
-type VerifyResult struct {
-	Certificate *cert.ParsedCert    `json:"cert"`
-	TPP         *models.TPP         `json:"tpp"`
+type VerifyResponse struct {
+	Certificate CertificateResponse `json:"cert"`
+	TPP         TppResponse         `json:"tpp"`
 	Valid       bool                `json:"valid"`
 	Scopes      map[string][]string `json:"scopes"`
 	Reason      string              `json:"reason,omitempty"`
+}
+
+type CertificateResponse struct {
+	Valid  bool           `json:"valid"`
+	Scopes []models.Scope `json:"scopes"`
+}
+
+type TppResponse struct {
+	Id         string                      `json:"id"`
+	NameLatin  string                      `json:"name_latin"`
+	NameNative string                      `json:"name_native"`
+	Authority  string                      `json:"authority"`
+	Services   map[string][]models.Service `json:"services"`
 }
 
 func (s *VerifySvc) AddRoot(cert *cert.ParsedCert) {
@@ -107,7 +120,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 		})
 		return
 	}
-	result := VerifyResult{}
+	result := VerifyResponse{}
 	certs, err := cert.ParseCerts([]byte(req.Cert))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -122,7 +135,18 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 		return
 	}
 	cert := certs[0]
-	result.Certificate = cert
+	certScopes, err := cert.OBScopes()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to retrieve certificate scopes.",
+		})
+		return
+	}
+	result.Certificate = CertificateResponse{
+		Valid:  true,
+		Scopes: certScopes,
+	}
+
 	tpp, err := s.getTpp(c, cert.CompanyId())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -130,17 +154,23 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 		})
 		return
 	}
-	result.TPP = tpp
+	result.TPP = TppResponse{
+		Id:         tpp.OBID,
+		NameLatin:  tpp.NameLatin,
+		NameNative: tpp.NameNative,
+		Authority:  tpp.Authority,
+		Services:   tpp.Services,
+	}
 
-	certVerifyResult, err := s.verifyCert(c, cert)
+	certVerifyResponse, err := s.verifyCert(c, cert)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to verify certificate.",
 		})
 		return
 	}
-	result.Valid = certVerifyResult.Valid
-	result.Reason = certVerifyResult.Reason
+	result.Valid = certVerifyResponse.Valid
+	result.Reason = certVerifyResponse.Reason
 	result.Scopes = s.getScopes(c, cert, tpp)
 	if len(result.Scopes) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -183,7 +213,7 @@ type URLStruct struct {
 	Lang string
 }
 
-type certVerifyResult struct {
+type certVerifyResponse struct {
 	Valid  bool
 	Reason string
 }
@@ -262,8 +292,8 @@ func (s *VerifySvc) isTrusted(cert *x509.Certificate, intermediateChain []*cert.
 	return true, chains[0], nil
 }
 
-func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerifyResult, error) {
-	result := certVerifyResult{
+func (s *VerifySvc) verifyCert(c *gin.Context, crt *cert.ParsedCert) (certVerifyResponse, error) {
+	result := certVerifyResponse{
 		Valid:  true,
 		Reason: "",
 	}

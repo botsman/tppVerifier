@@ -514,7 +514,7 @@ func TestVerify_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("Expected status code %d, got %d\n", http.StatusOK, w.Code)
 	}
-	var verifyResponse VerifyResult
+	var verifyResponse VerifyResponse
 	res := w.Body.String()
 	t.Logf("Response: %s", res)
 	if err := json.Unmarshal(w.Body.Bytes(), &verifyResponse); err != nil {
@@ -559,7 +559,7 @@ func TestVerify_Failure(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("Expected status code %d, got %d\n", http.StatusOK, w.Code)
 	}
-	var verifyResponse VerifyResult
+	var verifyResponse VerifyResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &verifyResponse); err != nil {
 		t.Fatalf("Couldn't unmarshal response: %v\n", err)
 	}

@@ -16,7 +16,7 @@ It verifies TPP certificates by:
         "registers": null,
         "created_at": "0001-01-01T00:00:00Z",
         "updated_at": "0001-01-01T00:00:00Z",
-        "is_active": false,
+        "is_active": true,
     },
     "tpp": { // parsed TPP data
         "NameLatin": "Suomen Asiakastieto Oy",
