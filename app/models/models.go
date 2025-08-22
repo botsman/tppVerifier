@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type CertUsage string
@@ -33,6 +35,25 @@ type TPP struct {
 	CreatedAt    time.Time            `bson:"created_at"`
 	UpdatedAt    time.Time            `bson:"updated_at"`
 	Registry     string               `bson:"registry"`
+	IsActive     bool                 `bson:"is_active"`
+}
+
+func (t *TPP) ToBSON() (bson.M, error) {
+	tppBson := bson.M{
+		"name_latin":    t.NameLatin,
+		"name_native":   t.NameNative,
+		"id":            t.Id,
+		"ob_id":         t.OBID,
+		"authority":     t.Authority,
+		"country":       t.Country,
+		"services":      t.Services,
+		"authorized_at": t.AuthorizedAt,
+		"withdrawn_at":  t.WithdrawnAt,
+		"type":          t.Type,
+		"updated_at":    t.UpdatedAt,
+		"registry":      t.Registry,
+	}
+	return tppBson, nil
 }
 
 type Register string

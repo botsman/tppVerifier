@@ -212,7 +212,7 @@ func main() {
 	// TODO: use bulk for performance
 	for crt := range parsedCertsChan {
 		filter := bson.M{"sha256": crt.Sha256()}
-		certSet, err := crt.ToBson()
+		certSet, err := crt.ToBSON()
 		if err != nil {
 			fmt.Println("Error converting cert to BSON:", err)
 			continue

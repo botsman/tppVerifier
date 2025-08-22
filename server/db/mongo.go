@@ -92,7 +92,7 @@ func (r *TppMongoRepository) AddCertificate(ctx context.Context, cert *cert.Pars
 	if cert == nil {
 		return errors.New("certificate cannot be nil")
 	}
-	certBson, err := cert.ToBson()
+	certBson, err := cert.ToBSON()
 	if err != nil {
 		return err
 	}
