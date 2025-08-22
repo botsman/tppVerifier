@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -80,6 +81,7 @@ func (r *RawTPP) toTPP() models.TPP {
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 		Registry:     "EBA",
+		IsActive:     true,
 	}
 
 	if len(r.Names) > 1 {
@@ -198,8 +200,9 @@ func serviceFromString(str string) (models.Service, error) {
 func parseOBID(entityNatRefCode string, country string, authority string) (string, error) {
 	// TPP Open banking ID is expected to be in the format: PSD{country}-{authority}-{id}
 	// Eg. PSDFI-FINFSA-0111027-9
-	// Id may or may not contain a dash at the end. For simplicity it will be removed
+	// Id may or may not contain a dash or a whitespace. For simplicity it will be removed
 	natRefCode := strings.ReplaceAll(entityNatRefCode, "-", "")
+	natRefCode = strings.ReplaceAll(natRefCode, " ", "")
 	return fmt.Sprintf("PSD%s-%s-%s", country, authority, natRefCode), nil
 }
 
@@ -219,17 +222,6 @@ func parseAuthority(authority string, country string) string {
 	return res
 }
 
-func parseCountry(properties []interface{}) string {
-	for _, prop := range properties {
-		if propMap, ok := prop.(map[string]interface{}); ok {
-			if country, ok := propMap["ENT_COU_RES"].(string); ok {
-				return country
-			}
-		}
-	}
-	return ""
-}
-
 func (r *RawTPP) parseServices(servicesData any) (map[string][]models.Service, error) {
 	// Services are represented aither as []map[string]string or as []map[string][]string
 	// depending if the country has multiple services or not
@@ -238,7 +230,7 @@ func (r *RawTPP) parseServices(servicesData any) (map[string][]models.Service, e
 		return res, nil
 	}
 	for _, countryServices := range servicesData.([]any) {
-		for country, services := range countryServices.(map[string]interface{}) {
+		for country, services := range countryServices.(map[string]any) {
 			// service may be either a string or an array of strings
 			switch service := services.(type) {
 			case string:
@@ -247,7 +239,7 @@ func (r *RawTPP) parseServices(servicesData any) (map[string][]models.Service, e
 					continue
 				}
 				res[country] = append(res[country], s)
-			case []interface{}:
+			case []any:
 				for _, service := range service {
 					s, err := serviceFromString(service.(string))
 					if err != nil {
@@ -430,31 +422,21 @@ func setupDb() (*mongo.Client, error) {
 	return client, nil
 }
 
-func saveTPPs(out <-chan models.TPP) error {
-	client, err := setupDb()
-	if err != nil {
-		return err
-	}
-	defer client.Disconnect(context.TODO())
-	// TODO: use a bulk insert
+func saveTPPs(client *mongo.Client, out <-chan models.TPP, now time.Time) error {
 	collection := client.Database("tppVerifier").Collection("tpps")
-	batchSize := 1000
-	batch := make([]interface{}, 0, batchSize)
-	idx := 0
+	opts := options.Update().SetUpsert(true)
 	for tpp := range out {
-		idx += 1
-		batch = append(batch, tpp)
-		if idx == batchSize {
-			_, err := collection.InsertMany(context.TODO(), batch)
-			if err != nil {
-				return err
-			}
-			batch = make([]interface{}, 0, batchSize)
-			idx = 0
+		tppSet, err := tpp.ToBSON()
+		if err != nil {
+			return err
 		}
-	}
-	if len(batch) > 0 {
-		_, err := collection.InsertMany(context.TODO(), batch)
+		update := bson.M{
+			"$set": tppSet,
+			"$setOnInsert": bson.M{
+				"created_at": now, // Set created_at only on insert
+			},
+		}
+		_, err = collection.UpdateOne(context.TODO(), bson.M{"id": tpp.Id}, update, opts)
 		if err != nil {
 			return err
 		}
@@ -470,14 +452,45 @@ func main() {
 	// 3. Unzip the file
 	// 4. Parse the file
 	// 5. Save the parsed data to the DB
+	// 6. Clean up the DB
 
 	getRegistry()
 	tppChan, err := parseRegistry()
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = saveTPPs(tppChan)
+	now := time.Now()
+	client, err := setupDb()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer func() {
+		err := client.Disconnect(context.TODO())
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+	err = saveTPPs(client, tppChan, now)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Clean up all TPPs that are not active
+	// We check the `updated_at` field to see if they were not updated in the current run
+	cleanupRes, err := client.Database("tppVerifier").Collection("tpps").UpdateMany(
+		context.TODO(),
+		bson.M{
+			"updated_at": bson.M{"$lt": now},
+			"is_active":  true,
+		},
+		bson.M{
+			"$set": bson.M{
+				"is_active": false,
+			},
+		},
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Cleaned up %d TPPs\n", cleanupRes.ModifiedCount)
 }

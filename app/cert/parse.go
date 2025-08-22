@@ -84,7 +84,7 @@ func GetCertFormat(crtContent []byte) (certFormat, error) {
 
 }
 
-func (c *ParsedCert) ToBson() (bson.M, error) {
+func (c *ParsedCert) ToBSON() (bson.M, error) {
 	if c.Cert == nil {
 		return nil, errors.New("certificate is nil")
 	}
