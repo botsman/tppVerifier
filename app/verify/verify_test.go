@@ -325,7 +325,7 @@ func TestGetTpp(t *testing.T) {
 	}
 	ctx := gin.Context{}
 	companyId := "PSDFIN-FINFSA-12345678"
-	tpp, err := svc.getTpp(&ctx, companyId)
+	tpp, err := svc.getTppResponse(&ctx, companyId)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -432,7 +432,7 @@ func TestGetScopes(t *testing.T) {
 	}
 	ctx := gin.Context{}
 	companyId := "PSDFIN-FINFSA-12345678"
-	tpp, err := svc.getTpp(&ctx, companyId)
+	tpp, err := svc.getTppResponse(&ctx, companyId)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}

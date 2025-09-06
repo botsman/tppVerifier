@@ -200,6 +200,7 @@ func parseOBID(entityNatRefCode string, country string, authority string) (strin
 	// Eg. PSDFI-FINFSA-0111027-9
 	// Id may or may not contain a dash at the end. For simplicity it will be removed
 	natRefCode := strings.ReplaceAll(entityNatRefCode, "-", "")
+	natRefCode = strings.ReplaceAll(natRefCode, " ", "")
 	return fmt.Sprintf("PSD%s-%s-%s", country, authority, natRefCode), nil
 }
 

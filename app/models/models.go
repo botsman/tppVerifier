@@ -63,3 +63,23 @@ const (
 	ScopePIS     Scope = "PIS"
 	ScopeUnknown Scope = "UNKNOWN"
 )
+
+type CertificateResponse struct {
+	Expired      bool           `json:"expired"`
+	Scopes       []Scope        `json:"scopes"`
+	SerialNumber string         `json:"serial_number"`
+	Issuer       map[string]any `json:"issuer"`
+	Subject      map[string]any `json:"subject"`
+	NotBefore    string         `json:"not_before"`
+	NotAfter     string         `json:"not_after"`
+	Usage        CertUsage      `json:"usage"`
+}
+
+type TppResponse struct {
+	Id         string               `json:"id"`
+	NameLatin  string               `json:"name_latin"`
+	NameNative string               `json:"name_native"`
+	Authority  string               `json:"authority"`
+	Services   map[string][]Service `json:"services"`
+	Country    string               `json:"country,omitempty"`
+}

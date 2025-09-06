@@ -9,7 +9,7 @@ services:
       - db
     environment:
       - MONGO_URL=mongodb://db:27017
-      - MONGO_DB=app
+      - MONGO_DB=tppVerifier
       - PORT=8080
       - GIN_MODE=debug
   db:
