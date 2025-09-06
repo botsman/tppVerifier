@@ -43,24 +43,11 @@ type VerifyRequest struct {
 }
 
 type VerifyResponse struct {
-	Certificate CertificateResponse `json:"cert"`
-	TPP         TppResponse         `json:"tpp"`
-	Valid       bool                `json:"valid"`
-	Scopes      map[string][]string `json:"scopes"`
-	Reason      string              `json:"reason,omitempty"`
-}
-
-type CertificateResponse struct {
-	Valid  bool           `json:"valid"`
-	Scopes []models.Scope `json:"scopes"`
-}
-
-type TppResponse struct {
-	Id         string                      `json:"id"`
-	NameLatin  string                      `json:"name_latin"`
-	NameNative string                      `json:"name_native"`
-	Authority  string                      `json:"authority"`
-	Services   map[string][]models.Service `json:"services"`
+	Certificate *models.CertificateResponse `json:"cert"`
+	TPP         *models.TppResponse                `json:"tpp"`
+	Valid       bool                       `json:"valid"`
+	Scopes      map[string][]string        `json:"scopes"`
+	Reason      string                     `json:"reason,omitempty"`
 }
 
 func (s *VerifySvc) AddRoot(cert *cert.ParsedCert) {
@@ -135,32 +122,23 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 		return
 	}
 	cert := certs[0]
-	certScopes, err := cert.OBScopes()
+	certResponse, err := cert.CertificateResponse()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to retrieve certificate scopes.",
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Failed to parse certificate.",
 		})
 		return
 	}
-	result.Certificate = CertificateResponse{
-		Valid:  true,
-		Scopes: certScopes,
-	}
+	result.Certificate = certResponse
 
-	tpp, err := s.getTpp(c, cert.CompanyId())
+	tppResponse, err := s.getTppResponse(c, cert.CompanyId())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to retrieve TPP information.",
 		})
 		return
 	}
-	result.TPP = TppResponse{
-		Id:         tpp.OBID,
-		NameLatin:  tpp.NameLatin,
-		NameNative: tpp.NameNative,
-		Authority:  tpp.Authority,
-		Services:   tpp.Services,
-	}
+	result.TPP = tppResponse
 
 	certVerifyResponse, err := s.verifyCert(c, cert)
 	if err != nil {
@@ -171,7 +149,7 @@ func (s *VerifySvc) Verify(c *gin.Context) {
 	}
 	result.Valid = certVerifyResponse.Valid
 	result.Reason = certVerifyResponse.Reason
-	result.Scopes = s.getScopes(c, cert, tpp)
+	result.Scopes = s.getScopes(c, cert, tppResponse)
 	if len(result.Scopes) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "No valid scopes found in the certificate",
@@ -194,13 +172,20 @@ func normalizeTppId(id string) string {
 	return fmt.Sprintf("%s-%s-%s", parts[0], parts[1], strings.Join(parts[2:], ""))
 }
 
-func (s *VerifySvc) getTpp(c *gin.Context, id string) (*models.TPP, error) {
+func (s *VerifySvc) getTppResponse(c *gin.Context, id string) (*models.TppResponse, error) {
 	id = normalizeTppId(id)
 	tpp, err := s.db.GetTpp(c, id)
 	if err != nil {
 		return nil, err
 	}
-	return tpp, nil
+	return &models.TppResponse{
+		Id:         tpp.Id,
+		NameLatin:  tpp.NameLatin,
+		NameNative: tpp.NameNative,
+		Authority:  tpp.Authority,
+		Services:   tpp.Services,
+		Country:    tpp.Country,
+	}, nil
 }
 
 type Role struct {
@@ -430,7 +415,7 @@ func (s *VerifySvc) loadCerts(c *gin.Context, body io.ReadCloser) ([]*cert.Parse
 	return certs, nil
 }
 
-func (s *VerifySvc) getScopes(c *gin.Context, crt *cert.ParsedCert, tpp *models.TPP) map[string][]string {
+func (s *VerifySvc) getScopes(c *gin.Context, crt *cert.ParsedCert, tpp *models.TppResponse) map[string][]string {
 	certServices := getCertServices(*crt)
 	if len(certServices) == 0 {
 		log.Printf("No services found in the certificate for TPP %s", tpp.Id)

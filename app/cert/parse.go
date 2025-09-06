@@ -3,6 +3,7 @@ package cert
 import (
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
@@ -321,6 +322,71 @@ func (c *ParsedCert) OBScopes() ([]models.Scope, error) {
 		}
 	}
 	return nil, nil
+}
+
+func (c *ParsedCert) CertificateResponse() (*models.CertificateResponse, error) {
+	certScopes, err := c.OBScopes()
+	if err != nil {
+		return nil, err
+	}
+	return &models.CertificateResponse{
+		Expired:      c.Expired(),
+		Scopes:       certScopes,
+		SerialNumber: c.Cert.SerialNumber.String(),
+		Issuer:       pkixNameToMap(c.Cert.Issuer),
+		Subject:      pkixNameToMap(c.Cert.Subject),
+		NotBefore:    c.Cert.NotBefore.String(),
+		NotAfter:     c.Cert.NotAfter.String(),
+		Usage:        c.Usage(),
+	}, nil
+}
+
+var organizationIdentifierOID = asn1.ObjectIdentifier{2, 5, 4, 97}
+
+func pkixNameToMap(name pkix.Name) map[string]any {
+	result := make(map[string]any)
+	if len(name.Country) > 0 {
+		result["country"] = name.Country
+	}
+	if len(name.Organization) > 0 {
+		result["organization"] = name.Organization
+	}
+	if len(name.OrganizationalUnit) > 0 {
+		result["organizational_unit"] = name.OrganizationalUnit
+	}
+	if len(name.Locality) > 0 {
+		result["locality"] = name.Locality
+	}
+	if len(name.Province) > 0 {
+		result["province"] = name.Province
+	}
+	if len(name.StreetAddress) > 0 {
+		result["street"] = name.StreetAddress
+	}
+	if len(name.PostalCode) > 0 {
+		result["postal_code"] = name.PostalCode
+	}
+	if len(name.CommonName) > 0 {
+		result["common_name"] = name.CommonName
+	}
+	if len(name.SerialNumber) > 0 {
+		result["serial_number"] = name.SerialNumber
+	}
+	for _, atv := range name.Names {
+		switch {
+		case atv.Type.Equal(organizationIdentifierOID):
+			result["organization_identifier"] = atv.Value
+		}
+	}
+	return result
+}
+
+func (c *ParsedCert) Expired() bool {
+	if c.Cert == nil {
+		return false
+	}
+	now := time.Now()
+	return !(now.After(c.Cert.NotBefore) && now.Before(c.Cert.NotAfter))
 }
 
 func (c *ParsedCert) Usage() models.CertUsage {
