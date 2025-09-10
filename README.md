@@ -1,20 +1,33 @@
-# tppVerifier
-Open Banking TPP verifier API description
+# TPP Verifier
+
+### Open Banking TPP verifier API description
 
 # How it works
-This project implements verification and validation of Open Banking Third Party Providers (TPPs). 
-It verifies and validates TPP certificates by:
-- Parsing and validating the certificate
-- Checking the certificate against a Certificate Authority (CA) bundle
-- Performing certificate revocation checks
-- Verifying TPPs against EBA (European Banking Authority) registry
+Implements verification and validation of Open Banking Third Party Providers (TPPs). 
+It verifies and validates PSD2 QWAC and QSealC certificates by:
+1. Parsing the provided certificate.
+2. Extracting the TPP ID from the certificate's organization identifier.
+3. Checking the TPP ID against the EBA registry to confirm its validity.
+4. Verifying the certificate against a set of trusted root certificates.
+5. Returning the TPP information and scopes.
+
+### TPP Verification Process
+```mermaid
+flowchart LR
+    TPPVerifier[TPP Verifier] --> ParseCert[Parse certificate]
+    TPPVerifier[TPP Verifier] --> ExtractTPPID[Extract TPP ID]
+    TPPVerifier[TPP Verifier] --> CheckEBA[Check TPP ID in EBA registry]
+    TPPVerifier[TPP Verifier] --> VerifyTPP[Verify TPP]
+    TPPVerifier[TPP Verifier] --> VerifyCert[Verify certificate against trusted roots]
+    TPPVerifier[TPP Verifier] --> Valid{Valid?}
+    Valid -- Yes --> ReturnInfo[Return TPP info and scopes]
+    Valid -- No --> ReturnError[Return error]
+```
 
 # Example request
 The API exposes a single endpoint `/verify` which accepts a POST request with a JSON body containing a base64-encoded certificate.
 ```bash
 curl -X POST http://localhost:8080/tpp/verify \
--H "Content-Type: application/json" \
--d '{
     "cert": "-----BEGIN CERTIFICATE-----....-----END CERTIFICATE-----"
 }'
 ```
@@ -73,14 +86,12 @@ curl -X POST http://localhost:8080/tpp/verify \
 ```
 
 # Deployment
-Deployment consists of running the main server, which does all the verification work, and a database to store the results.
+Deployment consists of running the main server, which does all the verification work and a database to store the results.
 
 Refer to the `docker-compose.yml` file for an example of how to deploy the application.
 
 The database is used to store a list of trusted certificates and TPPs.
 The database needs to be initialized with the CA bundle and EBA registry data. The tools provided in the `tools` directory can be used to populate the database:
-- `tools/eba_certs`: Downloads a list of trusted root certificates from the EBA registry and stores them in the database.
-- `tools/eba_tpps`: Downloads a list of TPPs from the EBA registry and stores them in the database.
 
 # Disclaimer
 
