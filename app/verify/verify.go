@@ -44,10 +44,10 @@ type VerifyRequest struct {
 
 type VerifyResponse struct {
 	Certificate *models.CertificateResponse `json:"cert"`
-	TPP         *models.TppResponse                `json:"tpp"`
-	Valid       bool                       `json:"valid"`
-	Scopes      map[string][]string        `json:"scopes"`
-	Reason      string                     `json:"reason,omitempty"`
+	TPP         *models.TppResponse         `json:"tpp"`
+	Valid       bool                        `json:"valid"`
+	Scopes      map[string][]string         `json:"scopes"`
+	Reason      string                      `json:"reason,omitempty"`
 }
 
 func (s *VerifySvc) AddRoot(cert *cert.ParsedCert) {

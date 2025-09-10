@@ -567,3 +567,23 @@ func TestVerify_Failure(t *testing.T) {
 		t.Error("Expected invalid certificate, got valid")
 	}
 }
+
+
+func TestNormalizeTppId(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"PSDFIN-FINFSA-1234567-8", "PSDFIN-FINFSA-12345678"},
+		{"PSDFIN-FINFSA-12345678", "PSDFIN-FINFSA-12345678"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := normalizeTppId(tt.input)
+			if got != tt.expected {
+				t.Errorf("normalizeTppId() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
