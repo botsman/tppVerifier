@@ -84,16 +84,19 @@ func GetCertFormat(crtContent []byte) (certFormat, error) {
 
 }
 
+func (c *ParsedCert) Pem() []byte {
+	if c.Cert == nil {
+		return nil
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c.Cert.Raw})
+}
+
 func (c *ParsedCert) ToBson() (bson.M, error) {
 	if c.Cert == nil {
 		return nil, errors.New("certificate is nil")
 	}
-	rawCertPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c.Cert.Raw})
-	if rawCertPem == nil {
-		return nil, errors.New("error encoding certificate to PEM format")
-	}
 	res := bson.M{
-		"pem":           rawCertPem,
+		"pem":           c.Pem(),
 		"serial_number": c.Cert.SerialNumber.String(),
 		"sha256":        c.Sha256(),
 		"registers":     c.Registers,

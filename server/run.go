@@ -8,12 +8,12 @@ import (
 	"github.com/botsman/tppVerifier/app"
 	"github.com/botsman/tppVerifier/app/verify"
 	"github.com/botsman/tppVerifier/app/cert"
-	"github.com/botsman/tppVerifier/server/db"
+	"github.com/botsman/tppVerifier/server/mongo"
 )
 
 func main() {
 	ctx := context.Background()
-	client, err := db.GetMongoDb(ctx)
+	client, err := mongo.GetMongoDb(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -24,7 +24,7 @@ func main() {
 	}()
 
 	httpClient := &http.Client{}
-	tppRepo := db.NewTppMongoRepository(client.Database)
+	tppRepo := mongo.NewTppMongoRepository(client.Database)
 	vs := verify.NewVerifySvc(tppRepo, httpClient)
 	roots, err := tppRepo.GetRootCertificates(ctx)
 	if err != nil {
