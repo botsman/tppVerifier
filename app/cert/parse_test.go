@@ -13,7 +13,6 @@ func getTestDataPath(relPath string) string {
 	return filepath.Join(filepath.Dir(filename), "..", "..", "testdata", relPath)
 }
 
-
 func TestGetCertFormat(t *testing.T) {
 	certFormats := []struct {
 		name   string

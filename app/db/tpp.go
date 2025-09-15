@@ -3,8 +3,8 @@ package db
 import (
 	"context"
 
-	"github.com/botsman/tppVerifier/app/models"
 	"github.com/botsman/tppVerifier/app/cert"
+	"github.com/botsman/tppVerifier/app/models"
 )
 
 type TppRepository interface {

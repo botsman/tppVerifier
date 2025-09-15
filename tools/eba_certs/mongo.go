@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
+	"github.com/botsman/tppVerifier/app/cert"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"os"
 	"time"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"github.com/botsman/tppVerifier/app/cert"
 )
 
 type MongoCertDb struct {
@@ -45,7 +45,7 @@ func (db *MongoCertDb) Disconnect(ctx context.Context) error {
 
 func (db *MongoCertDb) SaveCert(ctx context.Context, crt *cert.ParsedCert) error {
 	certsCollection := db.Database.Collection("certs")
-	filter := map[string]any{ "sha256": crt.Sha256() }
+	filter := map[string]any{"sha256": crt.Sha256()}
 	certSet, err := crt.ToBson()
 	if err != nil {
 		return err
@@ -60,7 +60,6 @@ func (db *MongoCertDb) SaveCert(ctx context.Context, crt *cert.ParsedCert) error
 	_, err = certsCollection.UpdateOne(ctx, filter, update, opts)
 	return err
 }
-
 
 func (db *MongoCertDb) CleanupInactive(ctx context.Context, now time.Time) (int64, error) {
 	certsCollection := db.Database.Collection("certs")

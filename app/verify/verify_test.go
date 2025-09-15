@@ -568,7 +568,6 @@ func TestVerify_Failure(t *testing.T) {
 	}
 }
 
-
 func TestNormalizeTppId(t *testing.T) {
 	tests := []struct {
 		input    string

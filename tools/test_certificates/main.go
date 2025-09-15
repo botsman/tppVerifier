@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/asn1"
-	"strings"
 	"fmt"
-	"log"
-	"github.com/botsman/tppVerifier/app/verify"
 	"github.com/botsman/tppVerifier/app/cert"
+	"github.com/botsman/tppVerifier/app/verify"
+	"log"
+	"strings"
 )
 
 func parseQcStatements(data []byte) error {
