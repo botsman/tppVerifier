@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"database/sql"
-	"time"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/botsman/tppVerifier/app/cert"
+	_ "github.com/mattn/go-sqlite3"
+	"time"
 )
 
 type SqliteCertDb struct {
@@ -62,7 +62,6 @@ func (db *SqliteCertDb) SaveCert(ctx context.Context, crt *cert.ParsedCert) erro
 	)
 	return err
 }
-
 
 func (db *SqliteCertDb) CleanupInactive(ctx context.Context, now time.Time) (int64, error) {
 	res, err := db.DB.ExecContext(ctx, `UPDATE certs SET is_active = 0 WHERE is_active = 1 AND position = 'Root' AND updated_at != ?`, now)

@@ -6,52 +6,52 @@ import (
 
 func TestParseOBID(t *testing.T) {
 	tests := []struct {
-		name     string
+		name             string
 		entityNatRefCode string
-		country  string
-		authority string
-		want     string
-		wantErr  bool
+		country          string
+		authority        string
+		want             string
+		wantErr          bool
 	}{
 		{
-			name: "Malta example with spaces and dash",
+			name:             "Malta example with spaces and dash",
 			entityNatRefCode: "C 102960",
-			country: "MT",
-			authority: "MFSA",
-			want: "PSDMT-MFSA-C102960",
-			wantErr: false,
+			country:          "MT",
+			authority:        "MFSA",
+			want:             "PSDMT-MFSA-C102960",
+			wantErr:          false,
 		},
 		{
-			name: "Finland example with dash",
+			name:             "Finland example with dash",
 			entityNatRefCode: "29884997",
-			country: "FI",
-			authority: "FINFSA",
-			want: "PSDFI-FINFSA-29884997",
-			wantErr: false,
+			country:          "FI",
+			authority:        "FINFSA",
+			want:             "PSDFI-FINFSA-29884997",
+			wantErr:          false,
 		},
 		{
-			name: "With dash in nat ref code",
+			name:             "With dash in nat ref code",
 			entityNatRefCode: "0111027-9",
-			country: "FI",
-			authority: "FINFSA",
-			want: "PSDFI-FINFSA-01110279",
-			wantErr: false,
+			country:          "FI",
+			authority:        "FINFSA",
+			want:             "PSDFI-FINFSA-01110279",
+			wantErr:          false,
 		},
 		{
-			name: "With spaces and dashes",
+			name:             "With spaces and dashes",
 			entityNatRefCode: "A B-C D-E F",
-			country: "DE",
-			authority: "BAFIN",
-			want: "PSDDE-BAFIN-ABCDEF",
-			wantErr: false,
+			country:          "DE",
+			authority:        "BAFIN",
+			want:             "PSDDE-BAFIN-ABCDEF",
+			wantErr:          false,
 		},
 		{
-			name: "Empty nat ref code",
+			name:             "Empty nat ref code",
 			entityNatRefCode: "",
-			country: "DE",
-			authority: "BAFIN",
-			want: "PSDDE-BAFIN-",
-			wantErr: false,
+			country:          "DE",
+			authority:        "BAFIN",
+			want:             "PSDDE-BAFIN-",
+			wantErr:          false,
 		},
 	}
 

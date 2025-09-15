@@ -8,11 +8,9 @@ import (
 	"github.com/botsman/tppVerifier/app/verify"
 )
 
-
 type HttpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
-
 
 func SetupRouter(vs *verify.VerifySvc) *gin.Engine {
 	r := gin.Default()

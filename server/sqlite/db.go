@@ -1,4 +1,3 @@
-
 package sqlite
 
 import (
@@ -7,8 +6,8 @@ import (
 	"errors"
 
 	"github.com/botsman/tppVerifier/app/cert"
-	"github.com/botsman/tppVerifier/app/models"
 	"github.com/botsman/tppVerifier/app/db"
+	"github.com/botsman/tppVerifier/app/models"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -23,8 +22,6 @@ func NewSQLiteRepo(path string) (db.TppRepository, error) {
 	}
 	return &TppSqliteRepository{db: dbConn}, nil
 }
-
-
 
 type TppSqliteRepository struct {
 	db *sql.DB

@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/botsman/tppVerifier/app/models"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type SqliteDb struct {
