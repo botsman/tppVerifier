@@ -44,9 +44,9 @@ const (
 type Position string
 
 const (
-	Root         Position = "Root"
-	Intermediate Position = "Intermediate"
-	Leaf         Position = "Leaf"
+	PositionRoot         Position = "Root"
+	PositionIntermediate Position = "Intermediate"
+	PositionLeaf         Position = "Leaf"
 )
 
 type ObRole string

@@ -16,12 +16,7 @@
             "type": "go",
             "request": "launch",
             "mode": "debug",
-            "program": "server/run.go",
-            "env": {
-                "MONGO_URL": "mongodb://localhost:27017",
-                "MONGO_DB": "tppVerifier",
-                "PORT": "8080",
-            }
+            "program": "server/run.go"
         },
         {
             "name": "Launch Package",

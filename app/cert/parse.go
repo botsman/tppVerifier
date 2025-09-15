@@ -124,7 +124,7 @@ func (c *ParsedCert) ToBson() (bson.M, error) {
 	if scopes != nil {
 		res["scopes"] = scopes
 	}
-	if c.Position == models.Leaf {
+	if c.Position == models.PositionLeaf {
 		res["usage"] = c.Usage()
 	}
 	return res, nil
