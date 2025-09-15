@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tppVerifier</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; color: #222; }
+        .container { max-width: 600px; margin: auto; background: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        h1 { color: #2d5be3; }
+        a { color: #2d5be3; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>tppVerifier</h1>
+        <p><strong>TPP Verifier</strong> is an open-source API for automated verification and validation of Third Party Providers (TPPs) in the context of Open Banking and PSD2. It supports the validation of QSealC and QWAC certificates, ensuring compliance with regulatory requirements and secure financial data exchange.</p>
+        <ul>
+            <li>Open Banking TPP (Third Party Provider) verification</li>
+            <li>PSD2 compliance: Validates QSealC and QWAC certificates</li>
+            <li>EBA registry integration: Checks TPP IDs against the official registry</li>
+            <li>Certificate chain validation: Verifies against trusted root CAs</li>
+            <li>REST API: Simple endpoint for certificate verification</li>
+            <li>Supports both QSealC and QWAC</li>
+        </ul>
+        <p>Find the source code and more information on <a href="https://github.com/botsman/tppVerifier" target="_blank">GitHub</a>.</p>
+        <hr>
+        <h2>How it works</h2>
+        <ol>
+            <li>Parsing the provided QSealC or QWAC certificate</li>
+            <li>Extracting the TPP ID from the certificate's organization identifier</li>
+            <li>Checking the TPP ID against the EBA registry</li>
+            <li>Verifying the certificate chain against trusted root certificates</li>
+            <li>Returning TPP information, scopes, and certificate status</li>
+        </ol>
+        <hr>
+        <p><em>See the README on <a href="https://github.com/botsman/tppVerifier" target="_blank">GitHub</a> for API usage, deployment, and more details.</em></p>
+    </div>
+</body>
+</html>
