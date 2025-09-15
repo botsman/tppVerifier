@@ -3,52 +3,29 @@ package mongo
 import (
 	"context"
 	"errors"
-	"log"
-	"os"
 
 	"github.com/botsman/tppVerifier/app/cert"
+	"github.com/botsman/tppVerifier/app/db"
 	"github.com/botsman/tppVerifier/app/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type MongoClient struct {
-	Client   *mongo.Client
-	Database *mongo.Database
-}
-
-func GetMongoDb(ctx context.Context) (*MongoClient, error) {
-	mongoURI := os.Getenv("MONGO_URL")
-	if mongoURI == "" {
-		return nil, errors.New("MONGO_URL is not set")
-	}
-	clientOptions := options.Client().ApplyURI(mongoURI)
-
+// NewMongoRepo creates a TppRepository backed by MongoDB, using the given connection string and database name.
+func NewMongoRepo(ctx context.Context, connStr, dbName string) (db.TppRepository, error) {
+	clientOptions := options.Client().ApplyURI(connStr)
 	mongoClient, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
-
 	err = mongoClient.Ping(ctx, nil)
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
-	dbName := os.Getenv("MONGO_DB")
-	if dbName == "" {
-		log.Fatal("MONGO_DB is not set")
-		panic("MONGO_DB is not set")
-	}
 	db := mongoClient.Database(dbName)
-	return &MongoClient{Client: mongoClient, Database: db}, nil
+	return &TppMongoRepository{db: db}, nil
 }
-
-func (db *MongoClient) Disconnect(ctx context.Context) error {
-	return db.Database.Client().Disconnect(ctx)
-}
-
 
 type TppMongoRepository struct {
 	db *mongo.Database
@@ -66,7 +43,7 @@ func (r *TppMongoRepository) GetTpp(ctx context.Context, id string) (*models.TPP
 func (r *TppMongoRepository) GetRootCertificates(ctx context.Context) ([]string, error) {
 	filter := bson.M{
 		"is_active": true,
-		"position":  models.Root,
+		"position":  models.PositionRoot,
 	}
 	cursor, err := r.db.Collection("certs").Find(ctx, filter)
 	if err != nil {

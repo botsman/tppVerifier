@@ -6,27 +6,26 @@ import (
 	"net/http"
 
 	"github.com/botsman/tppVerifier/app"
-	"github.com/botsman/tppVerifier/app/verify"
 	"github.com/botsman/tppVerifier/app/cert"
-	"github.com/botsman/tppVerifier/server/mongo"
+	"github.com/botsman/tppVerifier/app/verify"
+
+	// "github.com/botsman/tppVerifier/server/mongo"
+	"github.com/botsman/tppVerifier/server/sqlite"
 )
 
 func main() {
 	ctx := context.Background()
-	client, err := mongo.GetMongoDb(ctx)
+
+	// Uncomment the backend you want to use:
+	// repo, err := mongo.NewMongoRepo(ctx, "mongodb://localhost:27017", "tppVerifier")
+	repo, err := sqlite.NewSQLiteRepo("../data/sqlite.db")
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to initialize repository: %v", err)
 	}
-	defer func() {
-		if err := client.Disconnect(context.TODO()); err != nil {
-			log.Fatal(err)
-		}
-	}()
 
 	httpClient := &http.Client{}
-	tppRepo := mongo.NewTppMongoRepository(client.Database)
-	vs := verify.NewVerifySvc(tppRepo, httpClient)
-	roots, err := tppRepo.GetRootCertificates(ctx)
+	vs := verify.NewVerifySvc(repo, httpClient)
+	roots, err := repo.GetRootCertificates(ctx)
 	if err != nil {
 		log.Fatalf("Failed to get root certificates: %v", err)
 	}
