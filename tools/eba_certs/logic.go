@@ -114,6 +114,7 @@ func parseCerts(certChan <-chan RawCert, now time.Time) <-chan *cert.ParsedCert 
 				continue
 			}
 			for _, parsedCert := range parsedCerts {
+				parsedCert.CreatedAt = now
 				parsedCert.UpdatedAt = now
 				parsedCert.IsActive = true
 				parsedCert.Position = models.PositionRoot
