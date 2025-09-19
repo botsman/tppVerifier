@@ -3,18 +3,17 @@ package certsdb
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 )
 
-func run() {
+func run() error {
 	ctx := context.Background()
 	// Choose DB implementation here (Mongo or SQLite)
 	db, err := setupMongoCertDb()
 	// db, err := setupSqliteCertDb("data/sqlite.db")
 	if err != nil {
-		log.Fatalf("DB setup failed: %v", err)
+		return fmt.Errorf("DB setup failed: %w", err)
 	}
 	defer db.Disconnect(ctx)
 
@@ -36,8 +35,9 @@ func run() {
 
 	modified, err := db.CleanupInactive(ctx, now)
 	if err != nil {
-		fmt.Println("Error updating inactive certificates:", err)
+		return fmt.Errorf("error updating inactive certificates: %w", err)
 	}
 	fmt.Println("Finished processing certificates at", nowStr)
 	fmt.Printf("Updated %d certificates to inactive\n", modified)
+	return nil
 }
