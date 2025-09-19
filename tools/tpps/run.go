@@ -2,7 +2,6 @@ package tppsdb
 
 import (
 	"context"
-	"log"
 
 	"github.com/botsman/tppVerifier/app/models"
 )
@@ -12,7 +11,7 @@ type Db interface {
 	Disconnect(ctx context.Context) error
 }
 
-func run() {
+func run() error {
 	// Download and parse the registry
 	// populate DB
 	// 1. Download metadata at https://euclid.eba.europa.eu/register/api/filemetadata?t=1737374419184
@@ -26,16 +25,13 @@ func run() {
 
 	tppChan, err := parseRegistry()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	client, err := setupMongoDb()
 	// client, err := setupSqliteDb("data/sqlite.db")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer client.Disconnect(context.TODO())
-	err = saveTPPs(client, tppChan)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return saveTPPs(client, tppChan)
 }
