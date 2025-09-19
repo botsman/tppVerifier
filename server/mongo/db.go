@@ -12,18 +12,17 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// NewMongoRepo creates a TppRepository backed by MongoDB, using the given connection string and database name.
-func NewMongoRepo(ctx context.Context, connStr, dbName string) (db.TppRepository, error) {
-	clientOptions := options.Client().ApplyURI(connStr)
-	mongoClient, err := mongo.Connect(ctx, clientOptions)
+func NewMongoRepo(ctx context.Context, connStr string) (db.TppRepository, error) {
+	opts := options.Client().ApplyURI(connStr)
+	client, err := mongo.Connect(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
-	err = mongoClient.Ping(ctx, nil)
+	err = client.Ping(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	db := mongoClient.Database(dbName)
+	db := client.Database(opts.Auth.AuthSource)
 	return &TppMongoRepository{db: db}, nil
 }
 

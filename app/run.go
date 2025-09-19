@@ -15,5 +15,8 @@ type HttpClient interface {
 func SetupRouter(vs *verify.VerifySvc) *gin.Engine {
 	r := gin.Default()
 	r.POST("/tpp/verify", vs.Verify)
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
 	return r
 }
