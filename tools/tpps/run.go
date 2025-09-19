@@ -6,12 +6,12 @@ import (
 	"github.com/botsman/tppVerifier/app/models"
 )
 
-type Db interface {
+type db interface {
 	SaveTPPs(ctx context.Context, collection string, tpp []models.TPP) error
 	Disconnect(ctx context.Context) error
 }
 
-func run() error {
+func Run() error {
 	// Download and parse the registry
 	// populate DB
 	// 1. Download metadata at https://euclid.eba.europa.eu/register/api/filemetadata?t=1737374419184
