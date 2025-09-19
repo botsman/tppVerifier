@@ -1,4 +1,4 @@
-package main
+package certsdb
 
 import (
 	"github.com/botsman/tppVerifier/app/models"

@@ -17,7 +17,7 @@ func main() {
 	ctx := context.Background()
 
 	// Uncomment the backend you want to use:
-	// repo, err := mongo.NewMongoRepo(ctx, "mongodb://localhost:27017", "tppVerifier")
+	// repo, err := mongo.NewMongoRepo(ctx, "mongodb://localhost:27017/tppVerifier")
 	repo, err := sqlite.NewSQLiteRepo("../data/sqlite.db")
 	if err != nil {
 		log.Fatalf("Failed to initialize repository: %v", err)

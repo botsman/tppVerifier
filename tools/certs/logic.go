@@ -1,4 +1,4 @@
-package main
+package certsdb
 
 import (
 	"encoding/xml"
