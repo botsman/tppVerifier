@@ -1,4 +1,4 @@
-package tpps
+package tppsdb
 
 import (
 	"context"
