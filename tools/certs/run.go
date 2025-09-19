@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func main() {
+func run() {
 	ctx := context.Background()
 	// Choose DB implementation here (Mongo or SQLite)
 	db, err := setupMongoCertDb()
