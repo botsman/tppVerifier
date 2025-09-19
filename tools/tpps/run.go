@@ -12,7 +12,7 @@ type Db interface {
 	Disconnect(ctx context.Context) error
 }
 
-func main() {
+func run() {
 	// Download and parse the registry
 	// populate DB
 	// 1. Download metadata at https://euclid.eba.europa.eu/register/api/filemetadata?t=1737374419184
