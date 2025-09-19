@@ -414,7 +414,7 @@ func parseRegistry() (<-chan models.TPP, error) {
 	return res, nil
 }
 
-func saveTPPs(db Db, out <-chan models.TPP) error {
+func saveTPPs(dbImpl db, out <-chan models.TPP) error {
 	batchSize := 1000
 	batch := make([]models.TPP, 0, batchSize)
 	idx := 0
@@ -422,7 +422,7 @@ func saveTPPs(db Db, out <-chan models.TPP) error {
 		idx += 1
 		batch = append(batch, tpp)
 		if idx == batchSize {
-			err := db.SaveTPPs(context.TODO(), "tpps", batch)
+			err := dbImpl.SaveTPPs(context.TODO(), "tpps", batch)
 			if err != nil {
 				return err
 			}
@@ -431,7 +431,7 @@ func saveTPPs(db Db, out <-chan models.TPP) error {
 		}
 	}
 	if len(batch) > 0 {
-		err := db.SaveTPPs(context.TODO(), "tpps", batch)
+		err := dbImpl.SaveTPPs(context.TODO(), "tpps", batch)
 		if err != nil {
 			return err
 		}
