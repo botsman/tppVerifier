@@ -1,4 +1,4 @@
-package certsdb
+package certdb
 
 import (
 	"context"

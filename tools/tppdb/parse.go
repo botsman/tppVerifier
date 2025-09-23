@@ -1,4 +1,4 @@
-package tppsdb
+package tppdb
 
 import (
 	"archive/zip"
