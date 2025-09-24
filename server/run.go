@@ -4,21 +4,23 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/botsman/tppVerifier/app"
 	"github.com/botsman/tppVerifier/app/cert"
 	"github.com/botsman/tppVerifier/app/verify"
 
-	// "github.com/botsman/tppVerifier/server/mongo"
-	"github.com/botsman/tppVerifier/server/sqlite"
+	"github.com/botsman/tppVerifier/server/mongo"
+	// "github.com/botsman/tppVerifier/server/sqlite"
 )
 
 func main() {
 	ctx := context.Background()
 
+	connStr := os.Getenv("DATABASE_URL")
 	// Uncomment the backend you want to use:
-	// repo, err := mongo.NewMongoRepo(ctx, "mongodb://localhost:27017/tppVerifier")
-	repo, err := sqlite.NewSQLiteRepo("../data/sqlite.db")
+	repo, err := mongo.NewMongoRepo(ctx, connStr)
+	// repo, err := sqlite.NewSQLiteRepo(ctx, connStr)
 	if err != nil {
 		log.Fatalf("Failed to initialize repository: %v", err)
 	}

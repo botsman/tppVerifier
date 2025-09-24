@@ -11,7 +11,7 @@ type db interface {
 	Disconnect(ctx context.Context) error
 }
 
-func Run() error {
+func Run(ctx context.Context, connStr string) error {
 	// Download and parse the registry
 	// populate DB
 	// 1. Download metadata at https://euclid.eba.europa.eu/register/api/filemetadata?t=1737374419184
@@ -27,11 +27,11 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	client, err := setupMongoDb()
-	// client, err := setupSqliteDb("data/sqlite.db")
+	client, err := setupMongoDb(ctx, connStr)
+	// client, err := setupSqliteDb(ctx, connStr)
 	if err != nil {
 		return err
 	}
-	defer client.Disconnect(context.TODO())
+	defer client.Disconnect(ctx)
 	return saveTPPs(client, tppChan)
 }

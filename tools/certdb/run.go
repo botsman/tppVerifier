@@ -7,11 +7,10 @@ import (
 	"time"
 )
 
-func Run() error {
-	ctx := context.Background()
+func Run(ctx context.Context, connStr string) error {
 	// Choose DB implementation here (Mongo or SQLite)
-	db, err := setupMongoCertDb()
-	// db, err := setupSqliteCertDb("data/sqlite.db")
+	db, err := setupMongoCertDb(ctx, connStr)
+	// db, err := setupSqliteCertDb(ctx, connStr)
 	if err != nil {
 		return fmt.Errorf("DB setup failed: %w", err)
 	}
