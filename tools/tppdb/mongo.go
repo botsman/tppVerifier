@@ -2,8 +2,6 @@ package tppdb
 
 import (
 	"context"
-	"log"
-	"os"
 
 	"github.com/botsman/tppVerifier/app/models"
 	"go.mongodb.org/mongo-driver/bson"
@@ -16,27 +14,24 @@ type MongoDb struct {
 	Database *mongo.Database
 }
 
-func setupMongoDb() (*MongoDb, error) {
-	mongoURI := os.Getenv("MONGO_URL")
-	if mongoURI == "" {
-		mongoURI = "mongodb://localhost:27017"
-	}
-	clientOptions := options.Client().ApplyURI(mongoURI)
-
-	client, err := mongo.Connect(context.TODO(), clientOptions)
+func setupMongoDb(ctx context.Context, connStr string) (*MongoDb, error) {
+	opts := options.Client().ApplyURI(connStr)
+	client, err := mongo.Connect(ctx, opts)
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
 
-	err = client.Ping(context.TODO(), nil)
+	err = client.Ping(ctx, nil)
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
+	}
+	db := client.Database(opts.Auth.AuthSource)
+	if db == nil {
+		db = client.Database("tppVerifier")
 	}
 	return &MongoDb{
 		Client:   client,
-		Database: client.Database("tppVerifier"),
+		Database: db,
 	}, nil
 }
 

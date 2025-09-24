@@ -12,7 +12,7 @@ import (
 )
 
 // NewSQLiteRepo creates a TppRepository backed by SQLite, using the given database file path.
-func NewSQLiteRepo(path string) (db.TppRepository, error) {
+func NewSQLiteRepo(_ context.Context, path string) (db.TppRepository, error) {
 	dbConn, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err

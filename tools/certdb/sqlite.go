@@ -12,7 +12,7 @@ type SqliteCertDb struct {
 	DB *sql.DB
 }
 
-func setupSqliteCertDb(path string) (*SqliteCertDb, error) {
+func setupSqliteCertDb(_ context.Context, path string) (*SqliteCertDb, error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
