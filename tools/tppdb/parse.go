@@ -392,15 +392,12 @@ func parseRegistry() (<-chan models.TPP, error) {
 		for _, tpps := range registry {
 			for _, rawTpp := range tpps {
 				if rawTpp.CA_OwnerID == "" || rawTpp.Code == "" {
-					// log.Printf("Skipping TPP with missing CA_OwnerID or Code: %+v\n", rawTpp)
 					continue
 				}
 				if rawTpp.Type == "" {
-					// log.Printf("Skipping TPP with missing Type: %+v\n", rawTpp)
 					continue
 				}
 				if rawTpp.AuthorizedAt == nil || rawTpp.AuthorizedAt.IsZero() {
-					// log.Printf("Skipping TPP with missing AuthorizedAt: %+v\n", rawTpp)
 					continue
 				}
 				if !slices.Contains([]string{"PSD_AISP", "PSD_PI", "PSD_EMI"}, rawTpp.Type) {

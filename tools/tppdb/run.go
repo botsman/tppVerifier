@@ -19,16 +19,16 @@ func Run(ctx context.Context, connStr string) error {
 	// 3. Unzip the file
 	// 4. Parse the file
 	// 5. Save the parsed data to the DB
+	client, err := setupMongoDb(ctx, connStr)
+	// client, err := setupSqliteDb(ctx, connStr)
+	if err != nil {
+		return err
+	}
 
 	getRegistry()
 	defer deleteRegistry()
 
 	tppChan, err := parseRegistry()
-	if err != nil {
-		return err
-	}
-	client, err := setupMongoDb(ctx, connStr)
-	// client, err := setupSqliteDb(ctx, connStr)
 	if err != nil {
 		return err
 	}
