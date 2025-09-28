@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/botsman/tppVerifier/app/cert"
 	"github.com/botsman/tppVerifier/app/db"
@@ -22,8 +23,27 @@ func NewMongoRepo(ctx context.Context, connStr string) (db.TppRepository, error)
 	if err != nil {
 		return nil, err
 	}
-	db := client.Database(opts.Auth.AuthSource)
+	dbName, err := extractDatabaseName(connStr)
+	if err != nil {
+		return nil, err
+	}
+	if dbName == "" {
+		return nil, errors.New("database name is required in connection string")
+	}
+	db := client.Database(dbName)
 	return &TppMongoRepository{db: db}, nil
+}
+
+func extractDatabaseName(connStr string) (string, error) {
+	opts := options.Client().ApplyURI(connStr)
+	if opts.Auth != nil && opts.Auth.AuthSource != "" {
+		return opts.Auth.AuthSource, nil
+	}
+	connStrParts := strings.Split(connStr, "/")
+	if len(connStrParts) < 2 {
+		return "", errors.New("database name not found in connection string")
+	}
+	return connStrParts[len(connStrParts)-1], nil
 }
 
 type TppMongoRepository struct {

@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -8,10 +8,11 @@ RUN go mod verify
 
 COPY . .
 
-RUN cd server && go build -o /app/main .
+RUN CGO_ENABLED=0 go build -o /app/main ./server
 
 FROM scratch
 
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/main /app/main
 
 ENTRYPOINT ["/app/main"]
