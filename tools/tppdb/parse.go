@@ -322,6 +322,17 @@ func downloadRegistry() (io.ReadCloser, error) {
 		log.Fatalln("Error unmarshalling metadata", err)
 		return nil, err
 	}
+	// If timestamp is not today, skip
+	// "timestamp": "Tue Sep 30 08:00:50 UTC 2025"
+	metadataTimestamp := metadata["timestamp"]
+	timestamp, err := time.Parse("Mon Jan 2 15:04:05 MST 2006", metadataTimestamp)
+	if err != nil {
+		log.Printf("Error parsing metadata timestamp: %s\n", err)
+		return nil, err
+	}
+	if timestamp.Year() != time.Now().Year() || timestamp.Month() != time.Now().Month() || timestamp.Day() != time.Now().Day() {
+		return nil, errors.New("registry is not updated today, skipping")
+	}
 	registerUrl := metadata["golden_copy_path_context"] + metadata["latest_version_relative_zip_path"]
 	registerReq, err := http.Get(registerUrl)
 	if err != nil {
@@ -377,20 +388,39 @@ func unzipFile(f *zip.File) error {
 }
 
 func parseRegistry() (<-chan models.TPP, error) {
-	file, err := os.ReadFile(RegisterJsonName)
+	file, err := os.Open(RegisterJsonName)
 	if err != nil {
 		return nil, err
 	}
 
 	res := make(chan models.TPP)
 	go func() {
-		var registry [][]RawTPP
-		err = json.Unmarshal(file, &registry)
-		if err != nil {
-			log.Fatal(err)
+		defer file.Close()
+		defer close(res)
+		dec := json.NewDecoder(file)
+
+		// Expect the outer array
+		t, err := dec.Token()
+		if err != nil || t != json.Delim('[') {
+			log.Printf("Expected outer array: %v", err)
+			return
 		}
-		for _, tpps := range registry {
-			for _, rawTpp := range tpps {
+
+		// Iterate over each inner array
+		for dec.More() {
+			// Expect inner array
+			t, err := dec.Token()
+			if err != nil || t != json.Delim('[') {
+				log.Printf("Expected inner array: %v", err)
+				return
+			}
+			// Iterate over RawTPP objects in inner array
+			for dec.More() {
+				var rawTpp RawTPP
+				if err := dec.Decode(&rawTpp); err != nil {
+					log.Printf("Error decoding RawTPP: %v", err)
+					continue
+				}
 				if rawTpp.CA_OwnerID == "" || rawTpp.Code == "" {
 					continue
 				}
@@ -405,8 +435,14 @@ func parseRegistry() (<-chan models.TPP, error) {
 				}
 				res <- rawTpp.toTPP()
 			}
+			// End of inner array
+			if t, err := dec.Token(); err != nil || t != json.Delim(']') {
+				log.Printf("Expected end of inner array: %v", err)
+				return
+			}
 		}
-		close(res)
+		// End of outer array
+		_, _ = dec.Token()
 	}()
 	return res, nil
 }

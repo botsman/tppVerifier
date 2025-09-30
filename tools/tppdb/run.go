@@ -2,6 +2,7 @@ package tppdb
 
 import (
 	"context"
+	"log"
 
 	"github.com/botsman/tppVerifier/app/models"
 )
@@ -25,7 +26,11 @@ func Run(ctx context.Context, connStr string) error {
 		return err
 	}
 
-	getRegistry()
+	err = getRegistry()
+	if err != nil {
+		log.Printf("Error getting registry: %s\n", err)
+		return err
+	}
 	defer deleteRegistry()
 
 	tppChan, err := parseRegistry()
