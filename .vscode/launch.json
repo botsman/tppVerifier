@@ -16,7 +16,12 @@
             "type": "go",
             "request": "launch",
             "mode": "debug",
-            "program": "server/run.go"
+            "program": "server/run.go",
+            "env": {
+                "DATABASE_URL": "mongodb://localhost:27017/tppVerifier",
+                "AUTH_HEADER_NAME": "X-RapidAPI-Proxy-Secret",
+                "AUTH_HEADER_VALUE": "secret"
+            }
         },
         {
             "name": "Launch Package",
