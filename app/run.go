@@ -21,15 +21,15 @@ func SetupRouter(vs *verify.VerifySvc) *gin.Engine {
 		panic("AUTH_HEADER_NAME and AUTH_HEADER_VALUE must be set")
 	}
 
-	r.Use(func(c *gin.Context) {
+	tppGroup := r.Group("/tpp")
+	tppGroup.Use(func(c *gin.Context) {
 		if c.GetHeader(headerName) != headerValue {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Invalid or missing header"})
 			return
 		}
 		c.Next()
 	})
-
-	r.POST("/tpp/verify", vs.Verify)
+	tppGroup.POST("/verify", vs.Verify)
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
